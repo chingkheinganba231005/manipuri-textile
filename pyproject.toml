@@ -26,11 +26,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-train = ["torch>=2.2"]
-app = ["torch>=2.2", "gradio>=4.44"]
-hub = ["huggingface_hub>=0.23"]
+train = ["torch>=2.2", "safetensors>=0.4"]
+app = ["torch>=2.2", "safetensors>=0.4", "gradio>=4.44"]
+hub = ["huggingface_hub>=0.23", "safetensors>=0.4"]
+figures = ["matplotlib>=3.7"]
 dev = ["pytest>=7.4", "ruff>=0.5"]
-all = ["torch>=2.2", "gradio>=4.44", "huggingface_hub>=0.23", "pytest>=7.4", "ruff>=0.5"]
+all = ["torch>=2.2", "safetensors>=0.4", "gradio>=4.44", "huggingface_hub>=0.23", "matplotlib>=3.7",
+       "pytest>=7.4", "ruff>=0.5"]
 
 [project.scripts]
 manitex = "manitex.cli:main"
