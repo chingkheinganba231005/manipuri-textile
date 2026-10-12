@@ -142,7 +142,7 @@ def fig_model(out: Path, checkpoint: str) -> None:
 
     gen = TextileGenerator.from_pretrained(checkpoint)
     styles = gen.styles
-    opts = GenerationOptions(steps=32, cfg=1.0)
+    opts = GenerationOptions()
     fig, axes = plt.subplots(len(styles), 6, figsize=(12, 2.0 * len(styles)), squeeze=False)
     for r, style in enumerate(styles):
         ds = gen.generate(style, n=6, height=64, width=64, seed=r, options=opts)

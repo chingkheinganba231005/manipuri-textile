@@ -158,7 +158,10 @@ revealed as a unit with probability $(r(t)-r(t'))/r(t)$, the ancestral step of t
 \cite{sahoo2024simple,shi2024simplified} (Alg.~\ref{alg:sample}). We also implement MaskGIT's
 ordering \cite{chang2022maskgit}, which reveals the most confident orbits first (with annealed
 Gumbel noise). It is mode-seeking: for styles with sparse motifs on a large ground it often returns
-plain ground (Sec.~\ref{sec:experiments}).
+plain ground (Sec.~\ref{sec:experiments}). Orbits revealed in the same step are drawn independently,
+which occasionally gives an isolated cell a low-probability colour; each draw is therefore restricted
+to the smallest set of colours holding 95\,\% of the orbit's probability mass (nucleus filtering
+\cite{holtzman2020curious}).
 
 \begin{proposition}
 Every grid produced by orbit-pooled sampling is constant on every orbit. With sum pooling, the
@@ -170,8 +173,9 @@ Each orbit receives exactly one colour, written to all its members, and known (i
 their orbit. For the second claim, $\Pr(x_i=k\ \forall i\in O)\propto\prod_{i\in O}p_i(k)$.
 \end{proof}
 Mean pooling tempers the product (power $1/|O|$), which avoids over-confidence because cells of an
-orbit share most of their context. Inpainting fixes known cells; large canvases are produced by
-outpainting overlapping windows.
+orbit share most of their context. Inpainting fixes known cells. Canvases larger than the training
+windows are produced by outpainting overlapping windows; each window pools the orbits it contains and
+passes every sampled colour to the rest of its orbit as known cells, so the constraints stay exact.
 
 \begin{algorithm}[t]
 \caption{Orbit-pooled sampling}\label{alg:sample}
@@ -180,7 +184,7 @@ outpainting overlapping windows.
 \For{$s = 0,\dots,S-1$}
   \State $t \gets 1-\tfrac{s}{S}$, \ $t' \gets 1-\tfrac{s+1}{S}$
   \State $\ell \gets$ guided logits of $p_\theta(\cdot\mid X, c)$; mask colour slots $\ge$ budget
-  \State pool log-probabilities over each orbit; sample a colour $k_O$ for every masked orbit
+  \State pool log-probabilities over each orbit; sample a colour $k_O$ from the top-$p$ nucleus of every masked orbit
   \State reveal each masked orbit with probability $(r(t)-r(t'))/r(t)$ (all of them when $t'=0$)
 \EndFor
 \end{algorithmic}
@@ -216,9 +220,10 @@ raises the first or last end of a run.
 \end{proposition}
 \begin{proof}[Sketch]
 Between consecutive lattice points there are $F-1$ ends; the first lattice point lies within $F$
-ends of the run start and the last within $F$ ends of the run end. Gaps that still exceed $F$
-(short runs whose lattice points coincide with run ends) are split at their midpoint, which is an
-interior end because the gap is at least $F+1\ge 3$.
+ends of the run start and the last within $F$ ends of the run end. Stretches of more than $F$
+ends that remain (short runs whose lattice points coincide with run ends) are split at their
+midpoint, which is an interior end because such a stretch has at least $F+1\ge 3$ ends. Dropping an
+edge tie only merges two floats whose combined length is at most $F$.
 \end{proof}
 
 \begin{algorithm}[t]
@@ -226,8 +231,8 @@ interior end because the gap is at least $F+1\ge 3$.
 \begin{algorithmic}[1]
 \For{each visible run $[a,b)$ with $b-a>F$}
   \State $T \gets \{x : a < x < b-1,\ (x-\varphi) \bmod F = 0\}$
-  \While{some gap between consecutive points of $\{a-1\}\cup T\cup\{b\}$ exceeds $F$}
-    \State add the gap's midpoint to $T$
+  \While{two consecutive points of $\{a-1\}\cup T\cup\{b\}$ have more than $F$ ends between them}
+    \State add the end midway between them to $T$
   \EndWhile
   \State drop an edge tie if the merged float is still $\le F$; raise the ends in $T$
 \EndFor
@@ -281,9 +286,12 @@ produced 20.2\,\% motif cells, MaskGIT ordering 1.8\,\% without and 9.6\,\% with
 scale 4.5 (8 samples of $32\times32$ cells, 16 steps). In a preliminary run (4\,M-parameter model, procedural data only,
 $32\times32$ cells, 24 samples per style) MaskGIT ordering with unit Gumbel noise and 16 steps
 returned a single-colour grid for 75\,\% of Moirang phee samples and 46\,\% of motif-tile samples,
-whereas ancestral sampling returned none. Ancestral sampling with 32 steps and guidance $w=1$ came
-within 0.01 of the best $3\times3$ pattern-JS and 0.02 of the best row run-length distance among
-the settings tried, and is our default.
+whereas ancestral sampling returned none. On the final checkpoint of that run (4\,k steps;
+averages over the five styles, 24 samples each), doubling the steps from 32 to 64 lowered the
+$3\times3$ pattern-JS from 0.150 to 0.100 and the row run-length distance from 4.24 to 2.50 but left
+the colour-count distance unchanged (0.53 vs.\ 0.52); nucleus filtering with $p=0.95$ halved it
+(0.28) at a 10\,\% loss of diversity. Ancestral sampling with 64 steps, $p=0.95$ and guidance
+$w=1$ (pattern-JS 0.078, run-length 2.59, colour count 0.28) is our default.
 \todo{repeat with the final models (part of the ablations)}
 
 \paragraph{Digitisation (synthetic benchmark).}

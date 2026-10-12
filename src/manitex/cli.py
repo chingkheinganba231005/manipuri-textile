@@ -71,7 +71,7 @@ def cmd_generate(args) -> None:
         print("no checkpoint given: using the procedural generator", file=sys.stderr)
     h, w = _parse_size(args.size)
     opts = GenerationOptions(steps=args.steps, temperature=args.temperature, cfg=args.cfg, strategy=args.strategy,
-                             domain=args.domain)
+                             top_p=args.top_p, domain=args.domain)
     palette = args.palette.split(",") if args.palette and "," in args.palette else args.palette
     designs = gen.generate(args.style, n=args.n, height=h, width=w, n_colors=args.colors, symmetry=_symmetry(args),
                            palette=palette, seed=args.seed, options=opts)
@@ -180,7 +180,8 @@ def cmd_eval(args) -> None:
     h, w = _parse_size(args.size)
     rng_seed = args.seed
     designs = gen.generate(args.style, n=args.n, height=h, width=w, seed=rng_seed,
-                           options=GenerationOptions(steps=args.steps, cfg=args.cfg, strategy=args.strategy))
+                           options=GenerationOptions(steps=args.steps, cfg=args.cfg, strategy=args.strategy,
+                                                     top_p=args.top_p))
     if args.reference:
         from manitex.data import read_shards
 
@@ -204,6 +205,7 @@ def cmd_app(args) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    from manitex.generate import GenerationOptions
     from manitex.procedural import PROCEDURAL_STYLES
     from manitex.weave import STRUCTURE_NAMES
 
@@ -236,10 +238,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--n", type=int, default=4)
     sp.add_argument("--colors", type=int, default=None)
     sp.add_argument("--palette", default="auto", help="'auto', a preset name, or comma-separated hex colours")
-    sp.add_argument("--steps", type=int, default=32)
+    sp.add_argument("--steps", type=int, default=GenerationOptions.steps)
     sp.add_argument("--temperature", type=float, default=1.0)
-    sp.add_argument("--cfg", type=float, default=1.0)
-    sp.add_argument("--strategy", default="random", choices=["random", "confidence"])
+    sp.add_argument("--cfg", type=float, default=GenerationOptions.cfg)
+    sp.add_argument("--strategy", default=GenerationOptions.strategy, choices=["random", "confidence"])
+    sp.add_argument("--top-p", type=float, default=GenerationOptions.top_p, help="nucleus filtering (1 = off)")
     sp.add_argument("--domain", default="auto", choices=["auto", "real", "synthetic", "none"])
     sp.add_argument("--seed", type=int, default=0)
     sp.add_argument("--cell", type=int, default=8)
@@ -319,9 +322,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--style", default="moirang_phee")
     sp.add_argument("--size", default="64x64")
     sp.add_argument("--n", type=int, default=64)
-    sp.add_argument("--steps", type=int, default=32)
-    sp.add_argument("--cfg", type=float, default=1.0)
-    sp.add_argument("--strategy", default="random", choices=["random", "confidence"])
+    sp.add_argument("--steps", type=int, default=GenerationOptions.steps)
+    sp.add_argument("--cfg", type=float, default=GenerationOptions.cfg)
+    sp.add_argument("--strategy", default=GenerationOptions.strategy, choices=["random", "confidence"])
+    sp.add_argument("--top-p", type=float, default=GenerationOptions.top_p, help="nucleus filtering (1 = off)")
     sp.add_argument("--seed", type=int, default=0)
     sp.add_argument("--reference", default=None, help="shard file/dir with reference designs")
     sp.set_defaults(func=cmd_eval)

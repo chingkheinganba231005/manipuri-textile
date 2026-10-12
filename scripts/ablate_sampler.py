@@ -1,4 +1,4 @@
-"""Sampling-time ablation: unmasking order, number of steps and guidance (no retraining).
+"""Sampling-time ablation: unmasking order, steps, guidance, top-p, temperature (no retraining).
 
     python scripts/ablate_sampler.py --checkpoint runs/pretrain_base/final.pt --n 64 --size 64 \
         --out results/sampler_ablation
@@ -9,8 +9,10 @@ suite of ``manitex.metrics``, plus the *collapse rate* (fraction of single-colou
 ``floor`` row compares two disjoint reference sets: the metric values a perfect generator would
 reach at this sample size.
 
-Settings are ``strategy:steps:cfg[:noise]``, comma separated, e.g.
-``--settings random:32:1,confidence:16:1:4.5``.
+Each setting is a comma-separated list of ``GenerationOptions`` fields applied on top of the
+library defaults (ancestral order, 64 steps, guidance 1, top-p 0.95); settings are separated by
+semicolons, e.g. ``--settings "steps=32,top_p=1;strategy=confidence,noise=4.5"``.  The output
+table lists the effective options of every row.
 """
 
 from __future__ import annotations
@@ -26,22 +28,41 @@ from manitex.generate import GenerationOptions, TextileGenerator
 from manitex.metrics import evaluate
 from manitex.procedural import PROCEDURAL_STYLES, generate
 
-DEFAULT_SETTINGS = ("confidence:16:1:1,confidence:16:1:4.5,confidence:32:1:4.5,"
-                    "random:16:1,random:32:0,random:32:1,random:64:0.5,random:64:1")
+DEFAULT_SETTINGS = ";".join([
+    "strategy=confidence,steps=16,noise=1,top_p=1",  # MaskGIT ordering, little noise
+    "strategy=confidence,steps=32,noise=4.5,top_p=1",  # MaskGIT ordering, MaskGIT's noise
+    "steps=32,top_p=1",  # plain ancestral sampling
+    "steps=64,top_p=1",
+    "steps=32",
+    "steps=64",  # library default
+    "steps=128",
+    "steps=64,top_p=0.9",
+    "steps=64,temperature=0.9,top_p=1",
+    "steps=64,cfg=0",
+    "steps=64,cfg=2",
+])
 COLUMNS = ("pattern_js_3x3", "runlen_w1_rows", "runlen_w1_cols", "colour_count_tv", "diversity_gen")
+OPTION_FIELDS = ("strategy", "steps", "cfg", "top_p", "temperature", "noise")
 
 
 def parse_settings(text: str) -> list[tuple[str, GenerationOptions]]:
     out = []
-    for item in text.split(","):
-        parts = item.strip().split(":")
-        if len(parts) not in (3, 4) or parts[0] not in ("random", "confidence"):
-            raise SystemExit(f"bad setting {item!r}; expected strategy:steps:cfg[:noise]")
-        opt = GenerationOptions(strategy=parts[0], steps=int(parts[1]), cfg=float(parts[2]))
-        if len(parts) == 4:
-            opt.noise = float(parts[3])
-        out.append((item.strip(), opt))
+    for item in filter(None, (t.strip() for t in text.split(";"))):
+        opt = GenerationOptions()
+        for field in filter(None, (f.strip() for f in item.split(","))):
+            key, _, value = field.partition("=")
+            if key not in OPTION_FIELDS or not value:
+                raise SystemExit(f"bad setting {field!r} in {item!r}; use key=value with keys {OPTION_FIELDS}")
+            setattr(opt, key, value if key == "strategy" else type(getattr(GenerationOptions, key))(float(value)))
+        if opt.strategy not in ("random", "confidence"):
+            raise SystemExit(f"unknown strategy {opt.strategy!r}")
+        out.append((item, opt))
     return out
+
+
+def describe(opt: GenerationOptions) -> str:
+    keys = OPTION_FIELDS if opt.strategy == "confidence" else OPTION_FIELDS[:-1]
+    return ", ".join(f"{k}={getattr(opt, k)}" for k in keys)
 
 
 def references(style: str, n: int, size: int, shards, seed: int) -> list[np.ndarray]:
@@ -100,8 +121,9 @@ def main() -> None:
             m["collapse_rate"] = float(np.mean([len(np.unique(g)) == 1 for g in grids]))
             m["mean_colours"] = float(np.mean([len(np.unique(g)) for g in grids]))
             m["seconds"] = time.time() - t
+            m["options"] = describe(opt)
             results[style][name] = m
-            print(f"  {name:24s} " + " ".join(f"{k} {m[k]:.3f}" for k in COLUMNS)
+            print(f"  {m['options']:60s} " + " ".join(f"{k} {m[k]:.3f}" for k in COLUMNS)
                   + f" collapse {m['collapse_rate']:.2f} ({m['seconds']:.0f}s)")
 
     out = Path(args.out)
@@ -112,7 +134,8 @@ def main() -> None:
         lines += [f"### {style}", "", "| setting | " + " | ".join(COLUMNS) + " | collapse |",
                   "|---|" + "---|" * (len(COLUMNS) + 1)]
         for name, m in rows.items():
-            lines.append(f"| {name} | " + " | ".join(f"{m[k]:.3f}" for k in COLUMNS) + f" | {m['collapse_rate']:.2f} |")
+            lines.append(f"| {m.get('options', name)} | " + " | ".join(f"{m[k]:.3f}" for k in COLUMNS)
+                         + f" | {m['collapse_rate']:.2f} |")
         lines.append("")
     out.with_suffix(".md").write_text("\n".join(lines))
     print(f"wrote {out.with_suffix('.json')} and {out.with_suffix('.md')}")

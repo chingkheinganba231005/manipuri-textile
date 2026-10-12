@@ -37,11 +37,12 @@ from manitex.procedural import generate as procedural_generate
 
 @dataclass
 class GenerationOptions:
-    steps: int = 32
+    steps: int = 64
     temperature: float = 1.0
     cfg: float = 1.0
     strategy: str = "random"  # 'random' (ancestral) | 'confidence' (MaskGIT ordering)
     noise: float = 4.5  # Gumbel noise for 'confidence'
+    top_p: float = 0.95  # nucleus filtering of colour distributions (1 = off)
     domain: str = "auto"  # 'real' | 'synthetic' | 'none' | 'auto' (= 'real' if the model saw real data)
 
 
@@ -208,7 +209,7 @@ class TextileGenerator:
         sid = vocab.id(style)
         gen = torch.Generator().manual_seed(int(seed)) if seed is not None else None
         scfg = SamplerConfig(steps=opt.steps, temperature=opt.temperature, cfg=opt.cfg, strategy=opt.strategy,
-                             noise=opt.noise)
+                             noise=opt.noise, top_p=opt.top_p)
         domain = opt.domain
         if domain == "auto":
             domain = "real" if "real" in self.info.get("domains_seen", []) else "none"

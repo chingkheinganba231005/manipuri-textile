@@ -160,7 +160,7 @@ class FixedMarginals(torch.nn.Module):
 
 def test_ancestral_sampling_is_unbiased_and_confidence_order_is_not():
     m = FixedMarginals([0.8, 0.2])
-    g = sample(m, 8, 32, 32, config=SamplerConfig(strategy="random", steps=16, cfg=0.0),
+    g = sample(m, 8, 32, 32, config=SamplerConfig(strategy="random", steps=16, cfg=0.0, top_p=1.0),
                generator=torch.Generator().manual_seed(0))
     assert abs((g == 1).float().mean().item() - 0.2) < 0.02  # 8192 cells: std ~0.004
     gc = sample(m, 8, 32, 32, config=SamplerConfig(strategy="confidence", steps=16, cfg=0.0, noise=0.0),
@@ -169,6 +169,16 @@ def test_ancestral_sampling_is_unbiased_and_confidence_order_is_not():
     assert SamplerConfig().strategy == "random"
     with pytest.raises(ValueError):
         sample(m, 1, 4, 4, config=SamplerConfig(strategy="greedy"))
+
+
+def test_top_p_drops_the_tail():
+    m = FixedMarginals([0.7, 0.2, 0.1])
+    gen = torch.Generator().manual_seed(0)
+    g = sample(m, 8, 32, 32, config=SamplerConfig(steps=8, cfg=0.0, top_p=0.85), generator=gen)
+    assert int(g.max()) == 1  # colour 2 lies beyond the nucleus (0.7 + 0.2 >= 0.85)
+    assert abs((g == 1).float().mean().item() - 0.2 / 0.9) < 0.02  # renormalised within the nucleus
+    g = sample(m, 2, 8, 8, config=SamplerConfig(steps=4, cfg=0.0, top_p=0.6), generator=gen)
+    assert (g == 0).all()
 
 
 # --------------------------------------------------------------------------- data

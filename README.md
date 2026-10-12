@@ -121,12 +121,16 @@ tests/              pytest suite
 ```bash
 manitex export runs/pretrain_small/final.pt --out exports/manitex-small
 python scripts/build_space.py --out space_build --model exports/manitex-small
-cd space_build && git init && git add . && git commit -m "manitex demo"
-git remote add origin https://huggingface.co/spaces/<user>/manitex && git push -u origin main
+hf auth login                                                  # huggingface_hub CLI
+hf repos create <user>/manitex --type space --sdk gradio
+hf upload <user>/manitex space_build . --type space
 ```
 
-The CPU-basic Space runs the procedural generator, compiler and digitiser comfortably; a `small`
-model samples a 64×64 design in a few seconds on CPU.
+The procedural generator, weave compiler and digitiser run comfortably on the free CPU tier.
+Neural sampling is heavier: with the `small` model (32 M parameters) one 64×64 design takes
+≈ 30 s at 32 steps with guidance on two CPU threads, so on CPU the app starts with lighter
+settings (two 48×48 designs, 16 steps: ≈ 23 s). For a responsive public demo, give the Space GPU
+hardware (a paid upgrade in the Space settings).
 
 ## Research
 

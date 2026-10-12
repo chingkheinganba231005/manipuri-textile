@@ -103,15 +103,18 @@ manitex eval --checkpoint runs/finetune_real/final.pt --style moirang_phee --n 2
 
 Reports pattern-JS (2×2, 3×3), run-length distances, colour-count TV, symmetry statistics,
 diversity, novelty / memorisation and weavability (tie-down density, dobby shafts, float limits).
-The held-out NLL bound (`eval_bits_per_cell_ema`) is logged during training. See
+The held-out NLL bound (`eval_bits_per_cell_ema`) is logged during training. Sampler settings
+(order, steps, guidance, top-p) are compared on a finished checkpoint with
+`scripts/ablate_sampler.py` (see [configs/ablations/README.md](../configs/ablations/README.md));
+re-tune the defaults (64 steps, top-p 0.95, guidance 1) on your final model. See
 [RESEARCH_PLAN.md](RESEARCH_PLAN.md) for the full protocol.
 
 ## 7. Export and publish
 
 ```bash
 manitex export runs/finetune_real/final.pt --out exports/manitex-v1        # fp16 safetensors + config.json
-huggingface-cli login
-huggingface-cli upload <user>/manitex-v1 exports/manitex-v1 .            # model repo
+hf auth login
+hf upload <user>/manitex-v1 exports/manitex-v1 .                         # model repo
 ```
 
 Load anywhere with `TextileGenerator.from_pretrained("hf://<user>/manitex-v1")`.
@@ -121,6 +124,11 @@ Load anywhere with `TextileGenerator.from_pretrained("hf://<user>/manitex-v1")`.
 ```bash
 manitex app --checkpoint exports/manitex-v1                               # local
 python scripts/build_space.py --out space_build --model exports/manitex-v1  # Hugging Face Space
+hf repos create <user>/manitex --type space --sdk gradio
+hf upload <user>/manitex space_build . --type space
 ```
 
-On the Space you can instead set the variable `MANITEX_CHECKPOINT=hf://<user>/manitex-v1`.
+On the Space you can instead set the variable `MANITEX_CHECKPOINT=hf://<user>/manitex-v1` (and
+build without `--model`). Sampling speed: a 64×64 design with the `small` model takes ≈ 30 s on
+two CPU threads (32 steps, guidance); the app detects a CPU-only machine and starts with lighter
+settings. Use GPU hardware for a responsive public demo.

@@ -3,8 +3,9 @@
 
     python scripts/build_space.py --out space_build [--model exports/manitex-small]
 
-Then:  cd space_build && git init && git remote add origin https://huggingface.co/spaces/<user>/<space>
-       git add . && git commit -m "manitex demo" && git push -u origin main
+Then:  hf auth login
+       hf repos create <user>/<space> --type space --sdk gradio
+       hf upload <user>/<space> space_build . --type space
 """
 
 from __future__ import annotations

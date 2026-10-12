@@ -47,9 +47,13 @@
   colour is sampled per orbit and the orbit is unmasked as a unit, so every sample satisfies the
   constraints by construction.
 * **Sampling order.** Default: ancestral (random-order) unmasking, each masked orbit revealed with
-  probability `(r_t − r_s)/r_t`. MaskGIT confidence ordering is kept for ablations: with little
-  Gumbel noise it collapsed sparse-motif styles to plain ground in the CPU sanity run (75 % of
-  Moirang phee samples single-coloured vs 0 % for ancestral sampling).
+  probability `(r_t − r_s)/r_t`, 64 steps, guidance 1 and top-p 0.95 on each orbit's colour
+  distribution. MaskGIT confidence ordering is kept for ablations: with little Gumbel noise it
+  collapsed sparse-motif styles to plain ground in the CPU sanity run (75 % of Moirang phee samples
+  single-coloured vs 0 % for ancestral sampling). On that run's final checkpoint, 64 instead of 32
+  steps fixed most of the structure error (3×3 pattern-JS 0.150 → 0.100) and top-p 0.95 halved the
+  colour-count error (0.53 → 0.28, −10 % diversity). Re-tune on the final models with
+  `scripts/ablate_sampler.py`.
 * **Tie-downs.** For a visible run `[a, b)` longer than `F`, ties are placed at
   `{x ∈ (a, b−1) : (x − φ) mod F = 0}` with a brick-staggered phase `φ`; any residual gap > `F` is
   split at its midpoint. Every remaining float is ≤ `F` and no motif edge is hidden.
@@ -98,9 +102,11 @@ clearly visible between pattern picks (it then returns a finer, still faithful g
 *texton-based* grid inference (the coarsest grid whose cells share a repeating internal texture)
 is planned; the assisted mode (cells across/down given) is exact on clean inputs.
 
-Model sanity check (CPU, 4 M parameters, 32×32 crops, procedural data only, 4 k steps): held-out
-NLL bound fell from 3.2 to ≈ 0.2 bits/cell; samples show correct stripe and check structure.
-Real results come from the A100 runs (`configs/train/*.yaml`).
+Model sanity check (CPU, 4.1 M parameters, 32×32 crops, batch 32, procedural data only): the
+held-out NLL bound (EMA weights) was 0.294 bits/cell after 500 steps, 0.218 after 1 k and 0.131
+after 4 k. Samples show recognisable stripes, temple rows and plaids, with stray cells and extra
+colours expected from such a small, short run; exact symmetry constraints hold. Real results come
+from the A100 runs (`configs/train/*.yaml`).
 
 ## Figures
 

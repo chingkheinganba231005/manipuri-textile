@@ -16,7 +16,9 @@ with annealed Gumbel noise); it is mode-seeking and, with little noise, collapse
 styles to plain ground, so it is kept for ablations.
 
 Other controls: classifier-free guidance, a colour budget (``ncolors`` restricts the
-palette slots) and temperature.
+palette slots), temperature and nucleus (top-p) filtering of each orbit's colour
+distribution, which removes the stray low-probability colours that cells revealed in the
+same step would otherwise pick up independently.
 """
 
 from __future__ import annotations
@@ -34,11 +36,12 @@ from manitex.models.transformer import GridTransformer
 
 @dataclass
 class SamplerConfig:
-    steps: int = 32
+    steps: int = 64
     temperature: float = 1.0
     cfg: float = 1.0  # guidance weight w: logits = l_u + (1 + w) (l_c - l_u)
     strategy: str = "random"  # 'random' (ancestral) | 'confidence' (MaskGIT)
     noise: float = 4.5  # 'confidence' only: Gumbel noise scale on confidences, annealed to 0
+    top_p: float = 0.95  # nucleus filtering of each orbit's colour distribution (1 = off)
     schedule: str = "cosine"
     restrict_colors: bool = True
     pool: str = "mean"  # 'mean' | 'sum'
@@ -155,7 +158,12 @@ def sample(
             pooled = pooled / counts.view(1, -1, 1)
         pooled = pooled.masked_fill(~colour_ok.unsqueeze(1), float("-inf"))
         logq = F.log_softmax(pooled, dim=-1)
-        draw = torch.multinomial(logq.exp().view(-1, V), 1, generator=generator).view(n, n_orb)
+        probs = logq.exp()
+        if cfg.top_p < 1.0:  # keep the most probable colours covering top_p of the mass
+            ps, pi = probs.sort(dim=-1, descending=True)
+            ps = ps.masked_fill(ps.cumsum(-1) - ps >= cfg.top_p, 0.0)
+            probs = torch.zeros_like(probs).scatter_(-1, pi, ps)
+        draw = torch.multinomial(probs.view(-1, V), 1, generator=generator).view(n, n_orb)
         conf = logq.gather(-1, draw.unsqueeze(-1)).squeeze(-1)
 
         last = s == steps - 1

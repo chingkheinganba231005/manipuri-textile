@@ -230,12 +230,16 @@ def _mark_corners(image: np.ndarray | None, corners: list) -> np.ndarray | None:
 def build_app(checkpoint: str | None = None):
     import gradio as gr
 
+    from manitex.generate import GenerationOptions
     from manitex.weave import STRUCTURE_NAMES
 
     studio = Studio(checkpoint)
     styles = studio.gen.styles
     style_choices = [(STYLE_LABELS.get(s, s.replace("_", " ")), s) for s in styles]
     presets = ["auto", *PALETTE_PRESETS]
+    # a 'small' model needs ~30 s per 64x64 design (32 steps) on two CPU threads: lighter defaults on CPU
+    on_cpu = studio.gen.has_model and str(studio.gen.device) == "cpu"
+    d_steps, d_n, d_size = (16, 2, 48) if on_cpu else (GenerationOptions.steps, 4, 64)
 
     with gr.Blocks(title="manitex - Manipuri textile studio") as demo:
         gr.Markdown("# manitex · Manipuri textile design studio\n"
@@ -254,8 +258,8 @@ def build_app(checkpoint: str | None = None):
                         style = gr.Dropdown(style_choices, value=default_style, label="Style")
                         style_info = gr.Markdown(STYLE_DESCRIPTIONS.get(default_style, ""))
                         with gr.Row():
-                            rows = gr.Slider(16, 128, value=64, step=2, label="Rows (cells)")
-                            cols = gr.Slider(16, 128, value=64, step=2, label="Columns (cells)")
+                            rows = gr.Slider(16, 128, value=d_size, step=2, label="Rows (cells)")
+                            cols = gr.Slider(16, 128, value=d_size, step=2, label="Columns (cells)")
                         n_colors = gr.Slider(0, 8, value=0, step=1, label="Colours (0 = automatic)")
                         with gr.Accordion("Structure", open=True):
                             with gr.Row():
@@ -268,12 +272,12 @@ def build_app(checkpoint: str | None = None):
                             palette_text = gr.Textbox(label="Custom palette (hex, most frequent first)",
                                                       placeholder="#F1EADB, #A61E22, #1F1A17")
                         with gr.Accordion("Sampler", open=False):
-                            steps = gr.Slider(4, 64, value=32, step=1, label="Steps (fewer = faster)")
+                            steps = gr.Slider(4, 128, value=d_steps, step=1, label="Steps (fewer = faster)")
                             temperature = gr.Slider(0.5, 1.5, value=1.0, step=0.05, label="Temperature")
                             guidance = gr.Slider(0.0, 4.0, value=1.0, step=0.1, label="Guidance")
                         with gr.Row():
                             seed = gr.Number(value=0, precision=0, label="Seed")
-                            n = gr.Slider(1, 8, value=4, step=1, label="How many")
+                            n = gr.Slider(1, 8, value=d_n, step=1, label="How many")
                         gen_btn = gr.Button("Generate", variant="primary")
                     with gr.Column(scale=2):
                         gallery = gr.Gallery(label="Designs (click one to select)", columns=4, height=340,
