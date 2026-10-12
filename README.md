@@ -16,11 +16,11 @@ temple-like motifs. It covers the whole loop from photograph to loom:
 |---|---|
 | **Design representation** (`manitex.design`) | A design is a grid of *design cells* (palette indices) + a palette. Colours are numbered by frequency (*canonical* order), which separates **structure** from **colour**. |
 | **Procedural grammar** (`manitex.procedural`) | Stepped motif library (temple spires, pagodas, diamonds, stars…) and band layouts generating phanek, Moirang phee, banded-shawl, check and motif-tile designs — a structural prior for pretraining and a fallback generator. |
-| **Generative model** (`manitex.models`) | A *masked discrete diffusion* transformer that works directly on the weavable grid. Mirror symmetry, repeats and stripes are imposed **exactly** at sampling time by *orbit pooling*; inpainting, colour budgets and classifier-free guidance are built in. |
+| **Generative model** (`manitex.models`) | A *masked discrete diffusion* transformer that works directly on the weavable grid. Mirror symmetry, repeats and stripes are imposed **exactly** at sampling time by *orbit pooling*; inpainting, colour budgets and classifier-free guidance are built in. An autoregressive (raster-order) baseline on the same backbone is included for comparison. |
 | **Weave compiler** (`manitex.weave`) | Turns any design into a loom-agnostic draft: ground cloth (single colour, weft/warp stripes, or a plaid inferred from optical-mixture colours) + supplementary-weft pattern picks with **tie-downs** that bound float lengths. Exports **WIF** (weaving software, computer looms), run-length **pick-up instructions** for loin-loom weavers, SVG charts, yarn quantities and a printable HTML booklet. |
 | **Fabric renderer** (`manitex.render`) | Yarn-level simulation of the woven face (float spread, warp-/weft-faced cloth, twist texture). |
 | **Digitiser** (`manitex.digitise`) | Photo → clean design grid: perspective rectification, grid fitting, robust cell colours, CIELAB clustering, Potts denoising and repeat/symmetry regularisation. |
-| **Metrics** (`manitex.metrics`) | Palette-independent pattern statistics, run-length distances, symmetry, diversity, novelty (memorisation) and weavability. |
+| **Metrics** (`manitex.metrics`) | Palette-independent pattern statistics, run-length distances, symmetry, diversity, novelty (memorisation, checked over all translations and flips) and weavability. |
 | **Demo** (`manitex.app`) | A Gradio studio (generate / weave / digitise), ready for Hugging Face Spaces. |
 
 > **Status.** The full pipeline is implemented and tested (CPU). No trained weights are shipped:
@@ -109,7 +109,8 @@ designs = gen.generate("moirang_phee", n=8, height=64, width=64, n_colors=3,
 src/manitex/        design, color, constraints, procedural/, weave/, render/, digitise/,
                     models/, data/, train.py, generate.py, metrics.py, cli.py, app.py
 configs/            training configs (A100) and ablation notes
-scripts/            benchmark_digitise.py, build_space.py, make_figures.py
+scripts/            experiments (eval_generators.py: E1, eval_constraints.py: E2, ablate_sampler.py,
+                    benchmark_digitise.py: E7), make_figures.py, build_space.py
 docs/               TRAINING, WEAVING, DATA_COLLECTION, RESEARCH_PLAN, ETHICS
 paper/              LaTeX skeleton for the journal paper (The Visual Computer)
 space/              Hugging Face Space entry point

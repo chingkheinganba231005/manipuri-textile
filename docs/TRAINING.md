@@ -30,17 +30,21 @@ download). Two presets:
 
 | config | params | tokens / sample | batch (micro × accum) | steps | compute / step | rough A100 time |
 |---|---|---|---|---|---|---|
-| `configs/train/pretrain_small.yaml` | 32 M | 1024 (64×64 cells, patch 2) | 256 (128 × 2) | 50 k | 33.5 TFLOP | 3–6 h |
-| `configs/train/pretrain_base.yaml` | 129 M | 1024 | 256 (64 × 4) | 100 k | 134 TFLOP | 1–2 days |
+| `configs/train/pretrain_small.yaml` | 32 M | 1024 (64×64 cells, patch 2) | 256 (128 × 2) | 50 k | 48 TFLOP | 4–9 h |
+| `configs/train/pretrain_base.yaml` | 129 M | 1024 | 256 (64 × 4) | 100 k | 164 TFLOP | 1–2.5 days |
 
-Compute per step is counted exactly (forward + backward, `torch.utils.flop_counter`); the times
-assume 25–55 % of the A100's 312 TFLOP/s bf16 peak. Memory: the activations kept for the backward
-pass measure ≈ 322 MB per 64×64 sample for `small` and ≈ 643 MB for `base` (bf16), so a full batch
-of 256 would need 80–160 GB; the configs split it into micro-batches (`batch_size`) with gradient
-accumulation (`grad_accum`) to stay near 41 GB on an 80 GB card. Read the real speed from `samples_per_s` in
-`log.jsonl` after a few hundred steps. Run `pretrain_small` first: if its `eval_bits_per_cell_ema`
-flattens long before the end, shorten the base run (`steps=...`); the learning-rate schedule
-follows `steps`, so set it before starting.
+Compute per step is counted exactly (forward + backward including attention, with
+`torch.utils.flop_counter` and the math attention backend); the times assume 25–55 % of the
+A100's 312 TFLOP/s bf16 peak. Read the real speed from `samples_per_s` in `log.jsonl` after a few
+hundred steps.
+
+Memory: the activations kept for the backward pass measure ≈ 322 MB per 64×64 sample for `small`
+and ≈ 643 MB for `base` (bf16), so a full batch of 256 would need ≈ 82 GB or ≈ 165 GB. The configs
+split it into micro-batches (`batch_size`) with gradient accumulation (`grad_accum`), staying near
+41 GB on an 80 GB card.
+
+Run `pretrain_small` first: if its `eval_bits_per_cell_ema` flattens long before the end, shorten
+the base run (`steps=...`); the learning-rate schedule follows `steps`, so set it before starting.
 
 ```bash
 manitex train --config configs/train/pretrain_small.yaml
@@ -70,6 +74,18 @@ a 4 M-parameter CPU sanity model reached 0.13 bits/cell after 3.5 k steps of bat
 sheets should show clean stripes for phanek, framed temple rows for Moirang phee, and exact
 plaids for checks.
 
+### Autoregressive baseline (experiment E1)
+
+```bash
+manitex train --config configs/train/baseline_ar_small.yaml
+```
+
+The same `small` backbone with causal attention over single cells in raster order. It sees the
+same data as `pretrain_small`, but its 4096-token sequences cost about 5× the compute (≈ 990 vs
+189 GFLOP per sample with causal attention kernels) and ≈ 1.5 GB of activations per sample, hence
+micro-batches of 32 × 8: roughly 20–45 h on an A100. Its `eval_bits_per_cell_ema` is an exact NLL; the masked model's is an
+upper bound. Sampling takes one step per cell (with a key/value cache).
+
 ## 4. Real data
 
 Follow [DATA_COLLECTION.md](DATA_COLLECTION.md) to photograph textiles with consent, then:
@@ -92,6 +108,16 @@ New style names (e.g. `leirum_phee`) are added to the model's style vocabulary a
 manitex train --config configs/train/finetune_real.yaml init_from=runs/pretrain_base/final.pt
 ```
 
+For experiment E1, fine-tune models of equal size the same way, e.g. the two `small` models
+(the autoregressive one needs smaller micro-batches):
+
+```bash
+manitex train --config configs/train/finetune_real.yaml init_from=runs/pretrain_small/final.pt \
+    out_dir=runs/finetune_real_small
+manitex train --config configs/train/finetune_real.yaml init_from=runs/baseline_ar_small/final.pt \
+    out_dir=runs/finetune_real_ar batch_size=16 grad_accum=8
+```
+
 The fine-tuning mix keeps 20 % procedural data to avoid forgetting the structural prior. Real
 designs are tagged with the `real` domain, so at generation time `--domain real` asks for
 real-textile statistics and `--domain synthetic` for grammar-like ones. Checkpoints record the
@@ -101,13 +127,23 @@ real data and the unconditional (null) domain otherwise.
 ## 6. Evaluation
 
 ```bash
+# metric suite for one model and style
 manitex eval --checkpoint runs/finetune_real/final.pt --style moirang_phee --n 256 \
-             --reference data/real/val.npz > results/moirang_eval.json
+             --reference data/real/val.npz --train data/real/train.npz > results/moirang_eval.json
+# E1: generators side by side for every style (reference floor, grammar, retrieval, models)
+python scripts/eval_generators.py --model mdm=runs/finetune_real_small/final.pt \
+    --model ar=runs/finetune_real_ar/final.pt --reference data/real/val.npz \
+    --train data/real/train.npz --n 256 --out results/e1
+# E2: orbit pooling vs post-hoc projection for mirror / repeat / stripe constraints
+python scripts/eval_constraints.py --checkpoint runs/finetune_real/final.pt --n 128 --out results/e2
 ```
 
-Reports pattern-JS (2×2, 3×3), run-length distances, colour-count TV, symmetry statistics,
-diversity, novelty / memorisation and weavability (tie-down density, dobby shafts, float limits).
-The held-out NLL bound (`eval_bits_per_cell_ema`) is logged during training. Sampler settings
+Metrics: pattern-JS (2×2, 3×3), run-length distances, colour-count TV, symmetry statistics,
+diversity, novelty / memorisation (with `--train`: structural distance to the closest window of
+any training design, over all translations and flips; below 0.02 counts as memorised) and
+weavability (tie-down density, dobby shafts, float limits). The scripts add the models' NLL of
+the reference designs (bits/cell) and write JSON and Markdown tables. The held-out NLL
+(`eval_bits_per_cell_ema`) is also logged during training. Sampler settings
 (order, steps, guidance, top-p) are compared on a finished checkpoint with
 `scripts/ablate_sampler.py` (see [configs/ablations/README.md](../configs/ablations/README.md));
 re-tune the defaults (64 steps, top-p 0.95, guidance 1) on your final model. See

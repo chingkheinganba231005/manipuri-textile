@@ -1,5 +1,5 @@
 # Main pretraining run on the procedural grammar (~129M parameters, DiT-B scale).
-# 134 TFLOP per step: roughly 1-2 days for 100k steps on an A100 (see docs/TRAINING.md).
+# 164 TFLOP per step: roughly 1-2.5 days for 100k steps on an A100 (see docs/TRAINING.md).
 # Check the eval curve of pretrain_small first; shorten with steps=... if it flattens early.
 out_dir: runs/pretrain_base
 model: base             # d_model 768, depth 12, heads 12, patch 2

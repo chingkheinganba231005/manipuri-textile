@@ -1,5 +1,5 @@
 # Quick pretraining on the procedural grammar (~32M parameters).
-# 33.5 TFLOP per step: roughly 3-6 hours for 50k steps on an A100 (see docs/TRAINING.md).
+# 48 TFLOP per step: roughly 4-9 hours for 50k steps on an A100 (see docs/TRAINING.md).
 out_dir: runs/pretrain_small
 model: small            # d_model 384, depth 12, heads 6, patch 2
 crop: 64                # 64x64 design cells -> 32x32 = 1024 tokens

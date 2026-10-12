@@ -273,8 +273,24 @@ collection protocol and consent, splits by piece}.
 Palette-independent pattern statistics: Jensen--Shannon divergence between distributions of
 $k\times k$ colour \emph{partitions} ($k=2,3$), Wasserstein distance between run-length
 distributions along rows and columns, total variation of colour counts; symmetry and repeat scores;
-diversity and nearest-neighbour novelty (flip- and palette-invariant Hamming distance); likelihood
-(bits/cell); weavability (tie-downs per 100 cells, longest floats, dobby shafts).
+diversity (flip- and palette-invariant Hamming distance); likelihood of held-out designs
+(bits/cell); weavability (tie-downs per 100 cells, longest floats, dobby shafts). Memorisation is
+measured by \emph{structural novelty}: the fraction of pairs of neighbouring cells whose
+colour-change status differs from the closest window of any training design, minimised over all
+translations and the four flips (computed exactly by FFT cross-correlation). It does not depend on
+the palette, and a shifted copy of part of a training design scores 0; designs below 0.02 count as
+memorised. Every table also reports a \emph{floor}, the metric between two disjoint samples of
+reference designs, i.e.\ the value a perfect generator would reach at that sample size.
+
+\paragraph{Baselines.}
+(i)~The procedural grammar. (ii)~Retrieval: random crops of training designs, which match the data
+but create nothing new. (iii)~An autoregressive transformer on the same backbone and data: causal
+attention over single cells in raster order (patch size 1); position $i$ receives the colour of cell
+$i-1$ and the rotary position of cell $i$, so its likelihood is exact, whereas the masked model
+reports an upper bound. It needs $HW$ sequential sampling steps (with a key/value cache), about
+five times the training compute per grid, and imposes symmetry only by copying already generated
+orbit members, without looking ahead. \todo{(iv) image-space latent diffusion + digitisation.}
+Models are compared at equal size and data.
 
 \paragraph{Results.} \todo{E1 fidelity vs grammar / retrieval / autoregressive / image-space
 baselines; E2 orbit pooling vs projection; E3 data efficiency; E4 weavability; E5 weaver study;

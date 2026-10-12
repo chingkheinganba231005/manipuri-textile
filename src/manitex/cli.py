@@ -172,9 +172,9 @@ def cmd_export(args) -> None:
 
 
 def cmd_eval(args) -> None:
+    from manitex.experiments import reference_grids
     from manitex.generate import GenerationOptions, TextileGenerator
     from manitex.metrics import evaluate, weavability
-    from manitex.procedural import generate
 
     gen = TextileGenerator.from_pretrained(args.checkpoint)
     h, w = _parse_size(args.size)
@@ -182,18 +182,15 @@ def cmd_eval(args) -> None:
     designs = gen.generate(args.style, n=args.n, height=h, width=w, seed=rng_seed,
                            options=GenerationOptions(steps=args.steps, cfg=args.cfg, strategy=args.strategy,
                                                      top_p=args.top_p))
-    if args.reference:
-        from manitex.data import read_shards
+    from manitex.data import read_shards
 
-        ref = []
-        for sh in read_shards([args.reference]):
-            for i in range(len(sh)):
-                g = sh.grid(i)
-                if g.shape[0] >= h and g.shape[1] >= w and (args.style in ("", "any") or str(sh.styles[i]) == args.style):
-                    ref.append(g[:h, :w].astype(np.int64))
-    else:
-        ref = [generate(args.style, h, w, seed=10_000 + i).grid for i in range(args.n)]
-    res = evaluate([d.grid for d in designs], ref)
+    # random crops of the reference designs of the style (or procedural designs), as in training
+    shards = read_shards([args.reference]) if args.reference else None
+    ref = reference_grids(args.style, args.n, (h, w), shards, seed=10_000 + args.seed)
+    train = None
+    if args.train:  # novelty / memorisation against the training designs of the style
+        train = [sh.grid(i) for sh in read_shards([args.train]) for i in range(len(sh)) if str(sh.styles[i]) == args.style]
+    res = evaluate([d.grid for d in designs], ref, train=train)
     res.update(weavability(designs))
     print(json.dumps(res, indent=1))
 
@@ -327,7 +324,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--strategy", default=GenerationOptions.strategy, choices=["random", "confidence"])
     sp.add_argument("--top-p", type=float, default=GenerationOptions.top_p, help="nucleus filtering (1 = off)")
     sp.add_argument("--seed", type=int, default=0)
-    sp.add_argument("--reference", default=None, help="shard file/dir with reference designs")
+    sp.add_argument("--reference", default=None, help="shard file/dir with reference designs (default: procedural)")
+    sp.add_argument("--train", default=None, help="shard file/dir with training designs (novelty / memorisation)")
     sp.set_defaults(func=cmd_eval)
 
     sp = sub.add_parser("app", help="launch the Gradio demo")

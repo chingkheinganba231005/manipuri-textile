@@ -15,14 +15,20 @@ from manitex.design import MAX_COLORS, Design
 from manitex.procedural import PROCEDURAL_STYLES, generate
 
 
-def crop_design(d: Design, size: int, rng: np.random.Generator) -> Design:
-    """Random ``size x size`` crop (designs smaller than that wrap around, as in training) in
-    canonical colour order, with at most ``MAX_COLORS`` colours (rarest merged into the nearest)."""
+def _hw(size: int | tuple[int, int]) -> tuple[int, int]:
+    return (int(size), int(size)) if np.isscalar(size) else (int(size[0]), int(size[1]))
+
+
+def crop_design(d: Design, size: int | tuple[int, int], rng: np.random.Generator) -> Design:
+    """Random crop of ``size`` cells (an int for squares or ``(height, width)``; designs smaller
+    than that wrap around, as in training) in canonical colour order, with at most
+    ``MAX_COLORS`` colours (the rarest are merged into the nearest kept colour)."""
+    h, w = _hw(size)
     g = d.grid
-    if g.shape[0] < size or g.shape[1] < size:
-        g = np.pad(g, ((0, max(0, size - g.shape[0])), (0, max(0, size - g.shape[1]))), mode="wrap")
-    y, x = int(rng.integers(0, g.shape[0] - size + 1)), int(rng.integers(0, g.shape[1] - size + 1))
-    c = Design(np.ascontiguousarray(g[y : y + size, x : x + size]), d.palette, dict(d.meta)).canonical()
+    if g.shape[0] < h or g.shape[1] < w:
+        g = np.pad(g, ((0, max(0, h - g.shape[0])), (0, max(0, w - g.shape[1]))), mode="wrap")
+    y, x = int(rng.integers(0, g.shape[0] - h + 1)), int(rng.integers(0, g.shape[1] - w + 1))
+    c = Design(np.ascontiguousarray(g[y : y + h, x : x + w]), d.palette, dict(d.meta)).canonical()
     if c.n_colors > MAX_COLORS:
         pal = c.palette.astype(float)
         lut = np.arange(c.n_colors)
@@ -32,13 +38,15 @@ def crop_design(d: Design, size: int, rng: np.random.Generator) -> Design:
     return c
 
 
-def reference_designs(style: str, n: int, size: int, shards: Sequence | None = None, seed: int = 0) -> list[Design]:
-    """``n`` reference designs of ``size x size`` cells: procedural designs of ``style``, or random
-    crops of the designs of that style in ``shards``."""
+def reference_designs(style: str, n: int, size: int | tuple[int, int], shards: Sequence | None = None,
+                      seed: int = 0) -> list[Design]:
+    """``n`` reference designs of ``size`` cells: procedural designs of ``style``, or random crops
+    of the designs of that style in ``shards``."""
     if shards is None:
         if style not in PROCEDURAL_STYLES:
             raise ValueError(f"no procedural reference for style {style!r}; pass reference shards")
-        return [generate(style, size, size, seed=seed + i) for i in range(n)]
+        h, w = _hw(size)
+        return [generate(style, h, w, seed=seed + i) for i in range(n)]
     rng = np.random.default_rng(seed)
     pool = [(sh, j) for sh in shards for j in range(len(sh)) if str(sh.styles[j]) == style]
     if not pool:
@@ -50,7 +58,8 @@ def reference_designs(style: str, n: int, size: int, shards: Sequence | None = N
     return out
 
 
-def reference_grids(style: str, n: int, size: int, shards: Sequence | None = None, seed: int = 0) -> list[np.ndarray]:
+def reference_grids(style: str, n: int, size: int | tuple[int, int], shards: Sequence | None = None,
+                    seed: int = 0) -> list[np.ndarray]:
     """The grids of :func:`reference_designs` (int64)."""
     return [d.grid.astype(np.int64) for d in reference_designs(style, n, size, shards, seed)]
 

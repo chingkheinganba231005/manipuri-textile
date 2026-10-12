@@ -184,6 +184,24 @@ def test_cli_procedural_compile_digitise(tmp_path):
     assert len(list((tmp_path / "shards").glob("*.npz"))) == 2
 
 
+def test_cli_eval_with_references_and_training_set(tmp_path, capsys):
+    pytest.importorskip("torch")
+    from manitex.cli import main
+    from manitex.data import write_shard
+    from manitex.models import StyleVocab, build_model, make_config
+    from manitex.models.checkpoint import save_checkpoint
+
+    m = build_model(make_config("tiny"))
+    ck = save_checkpoint(tmp_path / "m.pt", model=m, ema=m, optimizer=None, step=1, model_cfg=m.cfg,
+                         train_cfg={"crop": 16}, vocab=StyleVocab.default(m.cfg.n_styles))
+    # reference designs smaller than the canvas: crops wrap around instead of being skipped
+    shard = write_shard(tmp_path / "ref.npz", [generate("check", 12, 14, seed=i) for i in range(3)], styles=["check"] * 3)
+    main(["eval", "--checkpoint", str(ck), "--style", "check", "--size", "16x20", "--n", "3", "--steps", "4",
+          "--reference", str(shard), "--train", str(shard)])
+    res = json.loads(capsys.readouterr().out)
+    assert 0 <= res["pattern_js_3x3"] <= 1 and 0 <= res["novelty_mean"] <= 1 and "tie_downs_per_100_cells" in res
+
+
 def test_app_studio_actions():
     pytest.importorskip("gradio")
     from manitex.app import Studio, build_app

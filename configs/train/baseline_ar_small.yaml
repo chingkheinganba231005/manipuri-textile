@@ -1,8 +1,9 @@
 # Autoregressive baseline for experiment E1: the small backbone (~32M parameters) with causal
 # attention over single cells in raster order (manitex.models.autoregressive).
 # Same data, crop and samples per step as pretrain_small.yaml (comparison at equal data). With 4x
-# more tokens per grid it costs ~4x the compute (522 vs 131 GFLOP per sample, forward + backward):
-# roughly 11-22 hours on an A100. For a comparison at equal compute use grad_accum=2 (64 per step).
+# more tokens per grid it costs ~5x the compute (about 990 vs 189 GFLOP per sample, forward +
+# backward, with causal attention kernels): roughly 20-45 hours on an A100. For a comparison at
+# equal compute use batch_size=25 grad_accum=2 (50 grids per step).
 out_dir: runs/baseline_ar_small
 model: {preset: small, arch: ar, patch: 1}
 crop: 64

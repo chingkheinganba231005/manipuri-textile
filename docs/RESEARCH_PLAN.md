@@ -62,8 +62,8 @@
 
 | ID | Question | Setup | Measures |
 |---|---|---|---|
-| E1 | RQ1 | Train on real train split (with/without grammar pretraining); compare with grammar, nearest-neighbour retrieval, AR transformer baseline, image-space LDM + digitiser | pattern-JS 2×2/3×3, run-length W1 (rows/cols), colour-count TV, symmetry stats, NLL (bits/cell), diversity, novelty |
-| E2 | RQ2 | Same model: unconstrained / post-hoc projection / orbit pooling (mean, sum) for mirror, repeat, stripes | constraint satisfaction, NLL of samples under the model, pattern-JS, expert preference |
+| E1 | RQ1 | Train on real train split (with/without grammar pretraining); compare with grammar, retrieval of training crops, AR transformer baseline, image-space LDM + digitiser (`scripts/eval_generators.py`) | pattern-JS 2×2/3×3, run-length W1 (rows/cols), colour-count TV, symmetry stats, NLL of held-out designs (bits/cell), diversity, novelty, weaving cost |
+| E2 | RQ2 | Same model: unconstrained / post-hoc projection / orbit pooling (mean, sum) for mirror, repeat, stripes (`scripts/eval_constraints.py`) | constraint satisfaction, NLL of samples under the model, pattern-JS, diversity, expert preference |
 | E3 | RQ3 | Fine-tune with 0/10/25/50/100 % of the real data, with and without pretraining | NLL and pattern-JS vs data fraction |
 | E4 | RQ4 | Compile all samples | tie-downs / 100 cells, max floats, dobby shafts, pattern-pick fraction; weaver ratings of booklets |
 | E5 | RQ4 | Blind study with 8–15 weavers/designers: real vs procedural vs generated (Likert authenticity, pairwise preference, "would you weave it?") | ratings, preference rates, qualitative comments |
@@ -75,9 +75,20 @@ condition dropout, domain tag on/off, flips, model size (tiny → large); at sam
 order (ancestral vs MaskGIT confidence), steps and guidance (`scripts/ablate_sampler.py`).
 See `configs/ablations/README.md`.
 
-**Baselines still to implement:** an autoregressive raster-order transformer on cells (same
-backbone with causal attention), and the image-space pipeline (fine-tune an open latent diffusion
-model on rendered designs, then digitise its outputs with `manitex digitise`).
+**Baselines.** Implemented: the grammar, retrieval of training crops, and an autoregressive
+raster-order transformer on cells (same backbone with causal attention, patch 1, exact likelihood,
+KV-cached sampling; `configs/train/baseline_ar_small.yaml`, ~5× the compute of the masked model
+per sample at equal data). Still to implement: the image-space pipeline (fine-tune an open latent
+diffusion model on rendered designs, then digitise its outputs with `manitex digitise`).
+
+**Likelihoods.** The masked model reports an upper bound (ELBO) on the NLL, the autoregressive
+model the exact NLL, so a lower AR number can partly reflect the gap of the bound; report both and
+say so.
+
+**Novelty.** `metrics.novelty` is the fraction of neighbouring-cell pairs whose colour-change
+status differs from the closest window of any training design, over all translations and flips
+(palette-independent, exact). Retrieval of training crops scores ≈ 0; designs below 0.02 count
+as memorised.
 
 ## Current results (synthetic, for orientation only)
 
