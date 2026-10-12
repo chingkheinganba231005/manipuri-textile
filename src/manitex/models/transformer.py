@@ -57,12 +57,13 @@ class Attention(nn.Module):
         self.k_norm = nn.RMSNorm(self.head_dim, eps=1e-6) if qk_norm else nn.Identity()
         self.dropout = dropout
 
-    def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor, causal: bool = False) -> torch.Tensor:
         B, N, D = x.shape
         q, k, v = self.qkv(x).view(B, N, 3, self.heads, self.head_dim).permute(2, 0, 3, 1, 4)
         q, k = self.q_norm(q), self.k_norm(k)
         q, k = apply_rope(q, cos.to(q.dtype), sin.to(q.dtype)), apply_rope(k, cos.to(k.dtype), sin.to(k.dtype))
-        out = F.scaled_dot_product_attention(q, k, v, dropout_p=self.dropout if self.training else 0.0)
+        out = F.scaled_dot_product_attention(q, k, v, dropout_p=self.dropout if self.training else 0.0,
+                                             is_causal=causal)
         return self.proj(out.transpose(1, 2).reshape(B, N, D))
 
 
@@ -89,9 +90,10 @@ class Block(nn.Module):
         self.mlp = SwiGLU(d, cfg.mlp_ratio)
         self.ada = nn.Linear(d, 6 * d)
 
-    def forward(self, x: torch.Tensor, c: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, c: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor,
+                causal: bool = False) -> torch.Tensor:
         s1, sc1, g1, s2, sc2, g2 = self.ada(F.silu(c)).chunk(6, dim=-1)
-        x = x + g1.unsqueeze(1) * self.attn(modulate(self.norm1(x), s1, sc1), cos, sin)
+        x = x + g1.unsqueeze(1) * self.attn(modulate(self.norm1(x), s1, sc1), cos, sin, causal)
         x = x + g2.unsqueeze(1) * self.mlp(modulate(self.norm2(x), s2, sc2))
         return x
 
@@ -157,6 +159,17 @@ class GridTransformer(nn.Module):
             self._rope_cache[key] = rope_tables(h, w, self.cfg.d_model // self.cfg.heads, self.cfg.rope_base, device)
         return self._rope_cache[key]
 
+    def conditioning(self, B: int, device, style: torch.Tensor | None = None, ncolors: torch.Tensor | None = None,
+                     domain: torch.Tensor | None = None) -> torch.Tensor:
+        """The conditioning vector (B, d_model); missing conditions use their null entries."""
+        if style is None:
+            style = torch.full((B,), self.null_style, device=device, dtype=torch.long)
+        if ncolors is None:
+            ncolors = torch.full((B,), self.null_ncolors, device=device, dtype=torch.long)
+        if domain is None:
+            domain = torch.full((B,), self.null_domain, device=device, dtype=torch.long)
+        return self.style_emb(style) + self.ncol_emb(ncolors) + self.domain_emb(domain)
+
     def forward(
         self,
         x: torch.Tensor,
@@ -165,25 +178,22 @@ class GridTransformer(nn.Module):
         domain: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """x: (B, H, W) long in [0, vocab] (vocab = MASK).  Returns logits (B, H, W, vocab)."""
+        return self.backbone(x, self.conditioning(x.shape[0], x.device, style, ncolors, domain))
+
+    def backbone(self, x: torch.Tensor, c: torch.Tensor, causal: bool = False) -> torch.Tensor:
+        """Cell grid (B, H, W) + conditioning (B, d) -> logits (B, H, W, vocab).  ``causal``
+        restricts every token to attend to itself and earlier tokens (raster order)."""
         B, H, W = x.shape
         p = self.cfg.patch
         if H % p or W % p:
             raise ValueError(f"grid size {H}x{W} must be divisible by the patch size {p}")
-        dev = x.device
-        if style is None:
-            style = torch.full((B,), self.null_style, device=dev, dtype=torch.long)
-        if ncolors is None:
-            ncolors = torch.full((B,), self.null_ncolors, device=dev, dtype=torch.long)
-        if domain is None:
-            domain = torch.full((B,), self.null_domain, device=dev, dtype=torch.long)
         h, w = H // p, W // p
         e = self.cell_emb(x)  # (B, H, W, c)
         e = e.view(B, h, p, w, p, -1).permute(0, 1, 3, 2, 4, 5).reshape(B, h * w, -1)
         tok = self.patch_proj(e)
-        c = self.style_emb(style) + self.ncol_emb(ncolors) + self.domain_emb(domain)
-        cos, sin = self._rope(h, w, dev)
+        cos, sin = self._rope(h, w, x.device)
         for blk in self.blocks:
-            tok = blk(tok, c, cos, sin)
+            tok = blk(tok, c, cos, sin, causal)
         shift, scale = self.final_ada(F.silu(c)).chunk(2, dim=-1)
         tok = modulate(self.final_norm(tok), shift, scale)
         out = self.head(tok)  # (B, h*w, p*p*V)

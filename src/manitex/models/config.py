@@ -22,6 +22,7 @@ class ModelConfig:
     qk_norm: bool = True
     rope_base: float = 100.0
     dropout: float = 0.0
+    arch: str = "mdm"  # 'mdm' (masked diffusion) | 'ar' (raster-order autoregressive baseline, patch 1)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

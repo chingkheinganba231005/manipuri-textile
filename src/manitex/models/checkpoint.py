@@ -9,6 +9,7 @@ from typing import Any
 import torch
 
 from manitex.models.config import ModelConfig, StyleVocab
+from manitex.models.factory import build_model
 from manitex.models.transformer import GridTransformer
 
 
@@ -91,14 +92,14 @@ def load_model(path: str | Path, device: str | torch.device = "cpu", use_ema: bo
 
         meta = json.loads((path / "config.json").read_text())
         cfg = ModelConfig.from_dict(meta["model_config"])
-        model = GridTransformer(cfg)
+        model = build_model(cfg)
         sd = {k: v.float() for k, v in load_file(str(path / "model.safetensors")).items()}
         model.load_state_dict(sd)
     else:
         state = load_checkpoint(path)
         meta = state
         cfg = ModelConfig.from_dict(state["model_config"])
-        model = GridTransformer(cfg)
+        model = build_model(cfg)
         sd = state["ema"] if (use_ema and state.get("ema")) else state["model"]
         model.load_state_dict(sd)
     model.to(device).eval()

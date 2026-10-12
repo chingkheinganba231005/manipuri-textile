@@ -1,4 +1,5 @@
-"""Training loop for the masked discrete diffusion model.
+"""Training loop for the masked discrete diffusion model (and the autoregressive baseline,
+selected with ``model={..., arch: ar, patch: 1}``).
 
 Single GPU::
 
@@ -35,8 +36,9 @@ from manitex.data.shards import read_shards
 from manitex.design import Design
 from manitex.models.checkpoint import load_checkpoint, save_checkpoint
 from manitex.models.config import DOMAINS, StyleVocab, make_config
-from manitex.models.diffusion import Batch, MaskedDiffusion
-from manitex.models.sampler import SamplerConfig, sample
+from manitex.models.diffusion import Batch
+from manitex.models.factory import build_model, objective_for, sampler_for
+from manitex.models.sampler import SamplerConfig
 from manitex.models.transformer import GridTransformer, count_params_human
 
 
@@ -212,9 +214,9 @@ def sample_sheet(model: GridTransformer, vocab: StyleVocab, size: int, device, s
     for sid, name in enumerate(vocab.names):
         if name == "unknown":
             continue
-        out = sample(model, per_style, size, size, style=sid, domain=DOMAINS.get(domain, 0),
-                     config=SamplerConfig(cfg=1.0), generator=torch.Generator().manual_seed(step + sid),
-                     device=device).numpy()
+        out = sampler_for(model)(model, per_style, size, size, style=sid, domain=DOMAINS.get(domain, 0),
+                                 config=SamplerConfig(cfg=1.0), generator=torch.Generator().manual_seed(step + sid),
+                                 device=device).numpy()
         tiles = []
         for g in out:
             k = int(g.max()) + 1
@@ -255,7 +257,7 @@ def train(cfg: TrainConfig) -> Path:
     stream = build_stream(cfg, vocab, "train")  # may add real-data styles to the vocabulary
     val_stream = build_stream(cfg, vocab, "val")
 
-    model = GridTransformer(model_cfg).to(device)
+    model = build_model(model_cfg).to(device)
     if init_state is not None:
         model.load_state_dict(init_state["ema"] or init_state["model"])
     ema = copy.deepcopy(model).float().eval()
@@ -282,8 +284,8 @@ def train(cfg: TrainConfig) -> Path:
         net = torch.compile(model)
     if world > 1:
         net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[local_rank] if device.type == "cuda" else None)
-    diff = MaskedDiffusion(model, cfg.schedule, cfg.weighting, cfg.p_uncond, cfg.p_drop_field, net=net)
-    diff_ema = MaskedDiffusion(ema, cfg.schedule, cfg.weighting)
+    diff = objective_for(model, cfg.schedule, cfg.weighting, cfg.p_uncond, cfg.p_drop_field, net=net)
+    diff_ema = objective_for(ema, cfg.schedule, cfg.weighting)
 
     loader = torch.utils.data.DataLoader(stream, batch_size=cfg.batch_size, collate_fn=collate,
                                          num_workers=cfg.num_workers, pin_memory=device.type == "cuda",
@@ -355,8 +357,12 @@ def train(cfg: TrainConfig) -> Path:
             t0, seen = time.time(), 0
         if rank == 0 and (step % cfg.eval_every == 0 or step == cfg.steps):
             hb = Batch(held_out["grid"], held_out["style"], held_out["ncolors"], held_out["domain"]).to(device)
+            parts = []
             with torch.autocast(device_type=device.type, dtype=amp_dtype, enabled=use_amp):
-                bpc = float(diff_ema.nll_bound(hb, n_t=8).mean())
+                for i in range(0, hb.grid.shape[0], cfg.batch_size):  # chunks no larger than a training micro-batch
+                    chunk = Batch(*(t[i : i + cfg.batch_size] for t in (hb.grid, hb.style, hb.ncolors, hb.domain)))
+                    parts.append(diff_ema.nll_bound(chunk, n_t=8))
+            bpc = float(torch.cat(parts).mean())
             rec = {"step": step, "eval_bits_per_cell_ema": bpc}
             print(json.dumps(rec))
             log_f.write(json.dumps(rec) + "\n")
@@ -378,7 +384,7 @@ def train(cfg: TrainConfig) -> Path:
 
 
 def main(argv: list[str] | None = None) -> None:
-    ap = argparse.ArgumentParser(description="Train the manitex masked diffusion model")
+    ap = argparse.ArgumentParser(description="Train a manitex model (masked diffusion or autoregressive baseline)")
     ap.add_argument("--config", type=str, default=None)
     ap.add_argument("overrides", nargs="*", help="key=value overrides")
     args = ap.parse_args(argv)

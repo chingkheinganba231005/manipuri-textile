@@ -4,7 +4,8 @@
 out_dir: runs/finetune_real
 init_from: runs/pretrain_base/final.pt
 crop: 64
-batch_size: 128
+batch_size: 64          # x grad_accum 2 = 128 per step (base model: 643 MB/sample)
+grad_accum: 2
 steps: 20000
 lr: 1.0e-4
 warmup: 500

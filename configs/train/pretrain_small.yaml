@@ -3,7 +3,8 @@
 out_dir: runs/pretrain_small
 model: small            # d_model 384, depth 12, heads 6, patch 2
 crop: 64                # 64x64 design cells -> 32x32 = 1024 tokens
-batch_size: 256
+batch_size: 128         # x grad_accum 2 = 256 per step; ~41 GB of activations (322 MB/sample)
+grad_accum: 2
 steps: 50000
 lr: 4.0e-4
 warmup: 2000

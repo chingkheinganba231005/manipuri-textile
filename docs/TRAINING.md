@@ -28,13 +28,16 @@ Look at `runs/debug_cpu/log.jsonl` (loss falls, `eval_bits_per_cell_ema` falls) 
 The procedural stream is generated on the fly by the DataLoader workers (no dataset to
 download). Two presets:
 
-| config | params | tokens / sample | batch | steps | compute / step | rough A100 time |
+| config | params | tokens / sample | batch (micro × accum) | steps | compute / step | rough A100 time |
 |---|---|---|---|---|---|---|
-| `configs/train/pretrain_small.yaml` | 32 M | 1024 (64×64 cells, patch 2) | 256 | 50 k | 33.5 TFLOP | 3–6 h |
-| `configs/train/pretrain_base.yaml` | 129 M | 1024 | 256 | 100 k | 134 TFLOP | 1–2 days |
+| `configs/train/pretrain_small.yaml` | 32 M | 1024 (64×64 cells, patch 2) | 256 (128 × 2) | 50 k | 33.5 TFLOP | 3–6 h |
+| `configs/train/pretrain_base.yaml` | 129 M | 1024 | 256 (64 × 4) | 100 k | 134 TFLOP | 1–2 days |
 
 Compute per step is counted exactly (forward + backward, `torch.utils.flop_counter`); the times
-assume 25–55 % of the A100's 312 TFLOP/s bf16 peak. Read the real speed from `samples_per_s` in
+assume 25–55 % of the A100's 312 TFLOP/s bf16 peak. Memory: the activations kept for the backward
+pass measure ≈ 322 MB per 64×64 sample for `small` and ≈ 643 MB for `base` (bf16), so a full batch
+of 256 would need 80–160 GB; the configs split it into micro-batches (`batch_size`) with gradient
+accumulation (`grad_accum`) to stay near 41 GB on an 80 GB card. Read the real speed from `samples_per_s` in
 `log.jsonl` after a few hundred steps. Run `pretrain_small` first: if its `eval_bits_per_cell_ema`
 flattens long before the end, shorten the base run (`steps=...`); the learning-rate schedule
 follows `steps`, so set it before starting.
@@ -45,7 +48,7 @@ manitex train --config configs/train/pretrain_small.yaml
 manitex train --config configs/train/pretrain_base.yaml
 ```
 
-* Any key can be overridden: `manitex train --config ... steps=20000 batch_size=128`.
+* Any key can be overridden: `manitex train --config ... steps=20000 eval_every=1000`.
 * Runs **auto-resume** from `<out_dir>/last.pt` (saved every `save_every` steps).
 * `wandb=true` logs to Weights & Biases (if installed); otherwise use `log.jsonl`.
 * If the GPU is under-utilised, the CPU workers cannot keep up: increase `num_workers` (≈ number
@@ -56,7 +59,8 @@ manitex train --config configs/train/pretrain_base.yaml
   manitex train --config configs/train/pretrain_base.yaml \
       "data=[{type: shards, paths: [data/synthetic], domain: synthetic}]"
   ```
-* Out of memory: halve `batch_size` and set `grad_accum=2` (same effective batch).
+* Out of memory: halve `batch_size` and double `grad_accum` (same effective batch). With spare
+  memory, do the opposite for slightly higher throughput.
 * `torch.compile` problems: set `compile=false` (slower, otherwise identical).
 * Multi-GPU: `torchrun --nproc_per_node=4 -m manitex.train --config ...` (batch size is per GPU).
 

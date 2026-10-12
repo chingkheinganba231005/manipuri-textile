@@ -4,7 +4,8 @@
 out_dir: runs/pretrain_base
 model: base             # d_model 768, depth 12, heads 12, patch 2
 crop: 64
-batch_size: 256
+batch_size: 64          # x grad_accum 4 = 256 per step; ~41 GB of activations (643 MB/sample)
+grad_accum: 4
 steps: 100000
 lr: 3.0e-4
 warmup: 5000

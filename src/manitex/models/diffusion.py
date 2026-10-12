@@ -51,6 +51,21 @@ def mask_ratio_rate(t: torch.Tensor, schedule: str) -> torch.Tensor:
     return 0.5 * math.pi * torch.cos(0.5 * math.pi * t)
 
 
+def drop_conditions(b: Batch, model: GridTransformer, p_uncond: float, p_drop_field: float) -> Batch:
+    """Classifier-free guidance dropout: all conditions null with ``p_uncond``, else each field
+    independently null with ``p_drop_field``."""
+    B = b.grid.shape[0]
+    dev = b.grid.device
+    all_null = torch.rand(B, device=dev) < p_uncond
+
+    def drop(x: torch.Tensor, null: int) -> torch.Tensor:
+        d = all_null | (torch.rand(B, device=dev) < p_drop_field)
+        return torch.where(d, torch.full_like(x, null), x)
+
+    return Batch(b.grid, drop(b.style, model.null_style), drop(b.ncolors, model.null_ncolors),
+                 drop(b.domain, model.null_domain))
+
+
 class MaskedDiffusion:
     def __init__(self, model: GridTransformer, schedule: str = "cosine", weighting: str = "mean",
                  p_uncond: float = 0.1, p_drop_field: float = 0.1, net: torch.nn.Module | None = None):
@@ -68,18 +83,7 @@ class MaskedDiffusion:
         return self.model.mask_id
 
     def drop_conditions(self, b: Batch) -> Batch:
-        """Classifier-free guidance dropout: all conditions null with p_uncond, else each
-        field independently null with p_drop_field."""
-        m = self.model
-        B = b.grid.shape[0]
-        dev = b.grid.device
-        all_null = torch.rand(B, device=dev) < self.p_uncond
-
-        def drop(x: torch.Tensor, null: int) -> torch.Tensor:
-            d = all_null | (torch.rand(B, device=dev) < self.p_drop_field)
-            return torch.where(d, torch.full_like(x, null), x)
-
-        return Batch(b.grid, drop(b.style, m.null_style), drop(b.ncolors, m.null_ncolors), drop(b.domain, m.null_domain))
+        return drop_conditions(b, self.model, self.p_uncond, self.p_drop_field)
 
     def corrupt(self, x0: torch.Tensor, t: torch.Tensor, schedule: str | None = None) -> tuple[torch.Tensor, torch.Tensor]:
         """Mask each cell with probability r(t); every sample keeps >= 1 masked cell."""

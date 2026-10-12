@@ -56,6 +56,15 @@ def _as_vec(v, n: int, default: int, device) -> torch.Tensor:
     return t.expand(n).clone() if t.numel() == 1 else t
 
 
+def filter_top_p(probs: torch.Tensor, top_p: float) -> torch.Tensor:
+    """Zero the colours outside the smallest set holding ``top_p`` of the mass (last dim)."""
+    if top_p >= 1.0:
+        return probs
+    ps, pi = probs.sort(dim=-1, descending=True)
+    ps = ps.masked_fill(ps.cumsum(-1) - ps >= top_p, 0.0)
+    return torch.zeros_like(probs).scatter_(-1, pi, ps)
+
+
 @torch.no_grad()
 def sample(
     model: GridTransformer,
@@ -162,11 +171,7 @@ def sample(
             pooled = pooled / counts.view(1, -1, 1)
         pooled = pooled.masked_fill(~colour_ok.unsqueeze(1), float("-inf"))
         logq = F.log_softmax(pooled, dim=-1)
-        probs = logq.exp()
-        if cfg.top_p < 1.0:  # keep the most probable colours covering top_p of the mass
-            ps, pi = probs.sort(dim=-1, descending=True)
-            ps = ps.masked_fill(ps.cumsum(-1) - ps >= cfg.top_p, 0.0)
-            probs = torch.zeros_like(probs).scatter_(-1, pi, ps)
+        probs = filter_top_p(logq.exp(), cfg.top_p)
         draw = torch.multinomial(probs.view(-1, V), 1, generator=generator).view(n, n_orb)
         conf = logq.gather(-1, draw.unsqueeze(-1)).squeeze(-1)
 

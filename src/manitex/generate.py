@@ -202,7 +202,9 @@ class TextileGenerator:
     def _sample_grids(self, style, n, height, width, n_colors, symmetry, seed, opt, known) -> np.ndarray:
         import torch
 
+        from manitex.models.autoregressive import ar_sample
         from manitex.models.config import DOMAINS
+        from manitex.models.factory import is_autoregressive
         from manitex.models.sampler import SamplerConfig, sample
 
         vocab = self.info["vocab"]
@@ -214,6 +216,10 @@ class TextileGenerator:
         if domain == "auto":
             domain = "real" if "real" in self.info.get("domains_seen", []) else "none"
         dom = DOMAINS.get(domain, None)  # 'none' -> null condition
+        if is_autoregressive(self.model):  # one cell at a time over the whole canvas
+            out = ar_sample(self.model, n, height, width, style=sid, ncolors=n_colors, domain=dom, symmetry=symmetry,
+                            known=known, config=scfg, generator=gen, device=self.device)
+            return out.numpy()
         window = 2 * self.train_crop
         if height <= window and width <= window:
             out = sample(self.model, n, height, width, style=sid, ncolors=n_colors, domain=dom, symmetry=symmetry,
