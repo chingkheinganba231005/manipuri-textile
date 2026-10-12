@@ -28,7 +28,6 @@ from scipy import ndimage
 from manitex.color import srgb_to_lab
 from manitex.digitise.geometry import sample_bilinear
 
-
 #: Blur applied after the yarn period ``t`` is found, as a multiple of ``t``.  0.6 removes the
 #: yarn-period texture and most of the two-yarn checker of plain-weave crossings.
 TEXTURE_BLUR = 0.6

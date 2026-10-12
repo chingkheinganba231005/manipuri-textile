@@ -11,19 +11,21 @@ venv/
 .ruff_cache/
 .mypy_cache/
 
-# Data, checkpoints and outputs (large / possibly sensitive - never commit raw community data)
-data/
-!data/README.md
-runs/
-checkpoints/
-outputs/
-wandb/
+# Data, checkpoints and outputs (large / possibly sensitive - never commit raw community data).
+# Patterns are anchored to the repository root so that e.g. src/manitex/data/ is not ignored.
+/data/*
+!/data/README.md
+/runs/
+/checkpoints/
+/outputs/
+/exports/
+/wandb/
 *.ckpt
 *.pt
 *.safetensors
 
 # Space build output
-space_build/
+/space_build/
 
 # OS / editors
 .DS_Store

@@ -6,7 +6,15 @@ torch = pytest.importorskip("torch")
 from manitex.constraints import Symmetry, make_orbits, project, satisfies  # noqa: E402
 from manitex.data.dataset import CropSpec, MixedStream, ProceduralStream, ShardStream, collate, prepare_crop  # noqa: E402
 from manitex.data.shards import read_shard, write_shard  # noqa: E402
-from manitex.models import Batch, GridTransformer, MaskedDiffusion, SamplerConfig, StyleVocab, make_config, sample  # noqa: E402
+from manitex.models import (  # noqa: E402
+    Batch,
+    GridTransformer,
+    MaskedDiffusion,
+    SamplerConfig,
+    StyleVocab,
+    make_config,
+    sample,
+)
 from manitex.models.transformer import apply_rope, rope_tables  # noqa: E402
 from manitex.procedural import generate  # noqa: E402
 
@@ -86,7 +94,7 @@ def test_overfit_tiny_batch():
               torch.full((8,), 3, dtype=torch.long), torch.zeros(8, dtype=torch.long))
     opt = torch.optim.AdamW(m.parameters(), lr=2e-3)
     first = None
-    for step in range(150):
+    for _ in range(150):
         loss, stats = diff.loss(b)
         opt.zero_grad()
         loss.backward()

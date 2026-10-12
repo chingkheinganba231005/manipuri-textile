@@ -209,7 +209,7 @@ def _mark_corners(image: np.ndarray | None, corners: list) -> np.ndarray | None:
     img = np.array(image).copy()
     h, w = img.shape[:2]
     r = max(3, min(h, w) // 120)
-    for i, (x, y) in enumerate(corners):
+    for x, y in corners:
         x, y = int(round(x)), int(round(y))
         img[max(0, y - r) : y + r + 1, max(0, x - r) : x + r + 1] = (255, 0, 200)
     if len(corners) == 4:

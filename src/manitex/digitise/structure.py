@@ -67,18 +67,33 @@ def regularize_stripes(labels: np.ndarray, cost: np.ndarray, axis: int = 0, min_
     return (out if axis == 0 else out.T), changed
 
 
-def match_score(seq: np.ndarray, s: int) -> float:
-    """Fraction of positions x with seq[..., x] == seq[..., x + s]."""
+def _background(seq: np.ndarray) -> int:
+    return int(np.bincount(np.asarray(seq).ravel()).argmax())
+
+
+def match_score(seq: np.ndarray, s: int, bg: int | None = None) -> float:
+    """Foreground agreement between ``seq[..., x]`` and ``seq[..., x + s]``.
+
+    Only position pairs where at least one cell differs from the background colour count,
+    so a mostly plain row does not look periodic just because background matches background.
+    """
     if s <= 0 or s >= seq.shape[-1]:
         return 0.0
-    return float((seq[..., :-s] == seq[..., s:]).mean())
+    bg = _background(seq) if bg is None else bg
+    a, b = seq[..., :-s], seq[..., s:]
+    fg = (a != bg) | (b != bg)
+    n = int(fg.sum())
+    if n == 0:
+        return 0.0
+    return float(((a == b) & fg).sum() / n)
 
 
 def best_period(rows: np.ndarray, min_period: int = 2, max_frac: float = 0.5, tol: float = 0.02) -> tuple[int, float]:
-    """Smallest period whose match score is within ``tol`` of the best one."""
+    """Smallest period whose foreground match score is within ``tol`` of the best one."""
     W = rows.shape[-1]
     smax = max(min_period, int(W * max_frac))
-    scores = np.array([match_score(rows, s) for s in range(min_period, smax + 1)])
+    bg = _background(rows)
+    scores = np.array([match_score(rows, s, bg) for s in range(min_period, smax + 1)])
     if scores.size == 0:
         return 0, 0.0
     top = scores.max()
@@ -87,54 +102,60 @@ def best_period(rows: np.ndarray, min_period: int = 2, max_frac: float = 0.5, to
 
 
 def detect_bands(labels: np.ndarray, min_score: float = 0.9) -> list[tuple[int, int, int]]:
-    """Group consecutive non-uniform rows sharing a horizontal period -> [(r0, r1, period)]."""
+    """Periodic bands -> [(r0, r1, period)].
+
+    Runs of consecutive non-uniform rows are first tested jointly (noisy rows inside a band
+    still count); if the run as a whole is not periodic it is split where the rows'
+    individual periods change.
+    """
     H, W = labels.shape
-    periods = []
-    for r in range(H):
-        row = labels[r]
-        if (row == row[0]).all():
-            periods.append(-1)  # uniform row (stripe)
-            continue
-        p, sc = best_period(row[None, :])
-        periods.append(p if sc >= min_score else 0)
+    uniform = np.array([(labels[r] == labels[r, 0]).all() for r in range(H)])
     bands: list[tuple[int, int, int]] = []
     r = 0
     while r < H:
-        if periods[r] <= 0:
+        if uniform[r]:
             r += 1
             continue
         r1 = r + 1
-        while r1 < H and periods[r1] > 0:
+        while r1 < H and not uniform[r1]:
             r1 += 1
-        # a common period for the whole non-uniform run, else split by individual periods
         p, sc = best_period(labels[r:r1])
         if sc >= min_score:
             bands.append((r, r1, p))
         else:
-            s = r
-            for t in range(r + 1, r1 + 1):
-                if t == r1 or periods[t] != periods[s]:
-                    if t - s >= 1:
-                        p2, sc2 = best_period(labels[s:t])
+            periods = []
+            for t in range(r, r1):
+                pt, st = best_period(labels[t][None, :])
+                periods.append(pt if st >= min_score else 0)
+            s0 = 0
+            for t in range(1, len(periods) + 1):
+                if t == len(periods) or periods[t] != periods[s0]:
+                    if periods[s0] > 0:
+                        p2, sc2 = best_period(labels[r + s0 : r + t])
                         if sc2 >= min_score:
-                            bands.append((s, t, p2))
-                    s = t
+                            bands.append((r + s0, r + t, p2))
+                    s0 = t
         r = r1
     return bands
 
 
 def best_mirror_axis(rows: np.ndarray, min_overlap: float = 0.5) -> tuple[float, float]:
-    """Vertical mirror axis (column coordinate, possibly half-integer) and its match score."""
+    """Vertical mirror axis (column coordinate, possibly half-integer) and its foreground score."""
     W = rows.shape[-1]
+    bg = _background(rows)
     best = (0.0, 0.0)
+    x = np.arange(W)
     for a2 in range(int(W * (1 - min_overlap)), int(W * (1 + min_overlap)) - 1):
         a = a2 / 2.0
-        x = np.arange(W)
         xm = (2 * a - x).astype(int)
         ok = (xm >= 0) & (xm < W) & (xm != x)
         if ok.sum() < W * min_overlap:
             continue
-        sc = float((rows[..., x[ok]] == rows[..., xm[ok]]).mean())
+        u, v = rows[..., x[ok]], rows[..., xm[ok]]
+        fg = (u != bg) | (v != bg)
+        if not fg.any():
+            continue
+        sc = float(((u == v) & fg).sum() / fg.sum())
         if sc > best[1]:
             best = (a, sc)
     return best

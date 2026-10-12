@@ -61,7 +61,7 @@ def test_runs_and_max_run():
 @pytest.mark.parametrize("max_float", [2, 3, 5, 8, 12])
 def test_add_tiedowns_properties(max_float):
     rng = np.random.default_rng(max_float)
-    for trial in range(300):
+    for _ in range(300):
         E = int(rng.integers(1, 120))
         vis = rng.random(E) < rng.uniform(0.3, 0.98)
         lift = (~vis).astype(np.uint8)

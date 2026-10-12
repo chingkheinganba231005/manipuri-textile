@@ -39,7 +39,7 @@ class RenderOptions:
     face_mode: str = "auto"  # 'auto' | 'balanced' | 'weft' | 'warp'
     warp_cover: float | None = None  # override the face preset
     weft_cover: float | None = None
-    spread: float = 0.85  # pattern-float spread over neighbouring picks of the same design row, in pick heights
+    spread: float = 1.0  # pattern-float spread over neighbouring picks of the same design row, in pick heights
     ambient: float = 0.42
     diffuse: float = 0.68
     specular: float = 0.10

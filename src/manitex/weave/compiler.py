@@ -242,6 +242,11 @@ def add_tiedowns(lift: np.ndarray, visible: np.ndarray, max_float: int, phase: i
                     ties.sort()
                     changed = True
                     break
+        # avoid slivers at the motif edges: drop an edge tie if the merged float still fits
+        if len(ties) >= 1 and (ties[0] - a) < s / 2 and ((ties[1] if len(ties) > 1 else b) - a) <= s:
+            ties = ties[1:]
+        if len(ties) >= 1 and (b - 1 - ties[-1]) < s / 2 and (b - 1 - (ties[-2] if len(ties) > 1 else a - 1)) <= s:
+            ties = ties[:-1]
         lift[ties] = 1
         n_ties += len(ties)
     return lift, n_ties

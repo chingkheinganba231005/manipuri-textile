@@ -21,7 +21,14 @@ from typing import Any
 
 import numpy as np
 
-from manitex.color import PALETTE_PRESETS, extend_palette, hex_to_rgb, jitter_palette, palette_for_style, preset_palette
+from manitex.color import (
+    PALETTE_PRESETS,
+    extend_palette,
+    hex_to_rgb,
+    jitter_palette,
+    palette_for_style,
+    preset_palette,
+)
 from manitex.constraints import Symmetry, make_orbits, project
 from manitex.design import Design, canonicalize_grid
 from manitex.procedural import PROCEDURAL_STYLES
@@ -83,14 +90,14 @@ class TextileGenerator:
         if device == "auto":
             device = "cuda" if torch.cuda.is_available() else "cpu"
         p = str(path)
-        if p.startswith("hf://"):
+        if p.startswith("hf://"):  # hf://<owner>/<repo>[/<subdir>]
             from huggingface_hub import snapshot_download
 
-            repo, _, sub = p[5:].partition("/")
-            owner, _, rest = sub.partition("/")
-            repo_id = f"{repo}/{owner}"
-            local = Path(snapshot_download(repo_id=repo_id))
-            p = str(local / rest) if rest else str(local)
+            parts = p[5:].strip("/").split("/")
+            if len(parts) < 2:
+                raise ValueError("expected hf://<owner>/<repo>[/<subdir>]")
+            local = Path(snapshot_download(repo_id=f"{parts[0]}/{parts[1]}"))
+            p = str(local.joinpath(*parts[2:])) if len(parts) > 2 else str(local)
         model, info = load_model(p, device=device)
         return cls(model, info, device)
 
