@@ -213,7 +213,7 @@ def sample_sheet(model: GridTransformer, vocab: StyleVocab, size: int, device, s
         if name == "unknown":
             continue
         out = sample(model, per_style, size, size, style=sid, domain=DOMAINS.get(domain, 0),
-                     config=SamplerConfig(steps=16, cfg=1.0), generator=torch.Generator().manual_seed(step + sid),
+                     config=SamplerConfig(cfg=1.0), generator=torch.Generator().manual_seed(step + sid),
                      device=device).numpy()
         tiles = []
         for g in out:

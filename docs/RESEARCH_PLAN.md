@@ -46,6 +46,10 @@
   `sum` gives the product-of-experts conditional of the factorised proposal given equality). One
   colour is sampled per orbit and the orbit is unmasked as a unit, so every sample satisfies the
   constraints by construction.
+* **Sampling order.** Default: ancestral (random-order) unmasking, each masked orbit revealed with
+  probability `(r_t − r_s)/r_t`. MaskGIT confidence ordering is kept for ablations: with little
+  Gumbel noise it collapsed sparse-motif styles to plain ground in the CPU sanity run (75 % of
+  Moirang phee samples single-coloured vs 0 % for ancestral sampling).
 * **Tie-downs.** For a visible run `[a, b)` longer than `F`, ties are placed at
   `{x ∈ (a, b−1) : (x − φ) mod F = 0}` with a brick-staggered phase `φ`; any residual gap > `F` is
   split at its midpoint. Every remaining float is ≤ `F` and no motif edge is hidden.
@@ -63,7 +67,8 @@
 | E7 | RQ5 | `scripts/benchmark_digitise.py` (synthetic) + a real subset with manually corrected ground truth | cell accuracy (assisted), pixel accuracy (automatic), colour ΔE00, exact-grid rate |
 
 **Ablations:** patch size (2 vs 4), loss weighting (mean vs ELBO), schedule (cosine vs linear),
-condition dropout, domain tag on/off, flips, model size (tiny → large), sampling steps and guidance.
+condition dropout, domain tag on/off, flips, model size (tiny → large); at sampling time, unmasking
+order (ancestral vs MaskGIT confidence), steps and guidance (`scripts/ablate_sampler.py`).
 See `configs/ablations/README.md`.
 
 **Baselines still to implement:** an autoregressive raster-order transformer on cells (same

@@ -9,9 +9,14 @@ unmasked at once.  For a factorised per-step proposal this is the product-of-exp
 conditional given the equality constraint (with ``pool='sum'``) or its tempered version
 (``pool='mean'``, the default, which avoids over-confidence from correlated cells).
 
+Unmasking order: ``'random'`` (default) is the ancestral reverse process of the masking
+diffusion -- every masked orbit is revealed with probability ``(r_t - r_s) / r_t`` and its
+colour drawn from the model.  ``'confidence'`` is MaskGIT's ordering (most confident first,
+with annealed Gumbel noise); it is mode-seeking and, with little noise, collapses sparse-motif
+styles to plain ground, so it is kept for ablations.
+
 Other controls: classifier-free guidance, a colour budget (``ncolors`` restricts the
-palette slots), temperature, MaskGIT confidence ordering with annealed Gumbel noise, or
-random-order ancestral unmasking.
+palette slots) and temperature.
 """
 
 from __future__ import annotations
@@ -29,11 +34,11 @@ from manitex.models.transformer import GridTransformer
 
 @dataclass
 class SamplerConfig:
-    steps: int = 24
+    steps: int = 32
     temperature: float = 1.0
     cfg: float = 1.0  # guidance weight w: logits = l_u + (1 + w) (l_c - l_u)
-    strategy: str = "confidence"  # 'confidence' (MaskGIT) | 'random' (ancestral)
-    noise: float = 1.0  # Gumbel noise scale on confidences, annealed to 0
+    strategy: str = "random"  # 'random' (ancestral) | 'confidence' (MaskGIT)
+    noise: float = 4.5  # 'confidence' only: Gumbel noise scale on confidences, annealed to 0
     schedule: str = "cosine"
     restrict_colors: bool = True
     pool: str = "mean"  # 'mean' | 'sum'
@@ -154,6 +159,8 @@ def sample(
         conf = logq.gather(-1, draw.unsqueeze(-1)).squeeze(-1)
 
         last = s == steps - 1
+        if cfg.strategy not in ("random", "confidence"):
+            raise ValueError(f"unknown sampling strategy {cfg.strategy!r}")
         if cfg.strategy == "random":
             r_now = mask_ratio(torch.tensor(1.0 - s / steps), cfg.schedule).item()
             r_next = mask_ratio(torch.tensor(1.0 - (s + 1) / steps), cfg.schedule).item()

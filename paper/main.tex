@@ -148,13 +148,17 @@ condition has a learned null entry used for classifier-free guidance \cite{ho202
 \paragraph{Exact structural control by orbit pooling.}
 A symmetry (left--right mirror, top--bottom mirror, $180^\circ$ rotation, horizontal or vertical
 repeat with period $\pi$, row or column stripes) induces a partition of the cells into orbits
-$\mathcal{O}$ whose members must share a colour (Fig.~\ref{fig:orbits}). Sampling proceeds as in
-MaskGIT, but on orbits: at every step the per-cell log-probabilities are pooled,
+$\mathcal{O}$ whose members must share a colour (Fig.~\ref{fig:orbits}). Sampling runs the reverse
+process on orbits: at every step the per-cell log-probabilities are pooled,
 \begin{equation}
 \log q_O(k) = \frac{1}{|O|}\sum_{i\in O}\log p_\theta(x_i = k\mid X_t,c) - \log Z_O,
 \end{equation}
-one colour is drawn per masked orbit, and the most confident orbits (with annealed Gumbel noise)
-are unmasked as units according to the schedule (Alg.~\ref{alg:sample}).
+one colour is drawn per masked orbit, and going from time $t$ to $t'<t$ each masked orbit is
+revealed as a unit with probability $(r(t)-r(t'))/r(t)$, the ancestral step of the masking process
+\cite{sahoo2024simple,shi2024simplified} (Alg.~\ref{alg:sample}). We also implement MaskGIT's
+ordering \cite{chang2022maskgit}, which reveals the most confident orbits first (with annealed
+Gumbel noise). It is mode-seeking: for styles with sparse motifs on a large ground it often returns
+plain ground (Sec.~\ref{sec:experiments}).
 
 \begin{proposition}
 Every grid produced by orbit-pooled sampling is constant on every orbit. With sum pooling, the
@@ -174,10 +178,10 @@ outpainting overlapping windows.
 \begin{algorithmic}[1]
 \State orbits $\mathcal{O}$ from the symmetry; mark orbits containing known cells as unmasked
 \For{$s = 0,\dots,S-1$}
+  \State $t \gets 1-\tfrac{s}{S}$, \ $t' \gets 1-\tfrac{s+1}{S}$
   \State $\ell \gets$ guided logits of $p_\theta(\cdot\mid X, c)$; mask colour slots $\ge$ budget
-  \State pool log-probabilities over each orbit; sample $k_O$ and confidence $\gamma_O$
-  \State $n \gets$ number of masked orbits to keep, $\lfloor M_0\, r(1-\tfrac{s+1}{S})\rfloor$
-  \State unmask the most confident masked orbits (confidence + annealed Gumbel noise)
+  \State pool log-probabilities over each orbit; sample a colour $k_O$ for every masked orbit
+  \State reveal each masked orbit with probability $(r(t)-r(t'))/r(t)$ (all of them when $t'=0$)
 \EndFor
 \end{algorithmic}
 \end{algorithm}
@@ -270,6 +274,17 @@ diversity and nearest-neighbour novelty (flip- and palette-invariant Hamming dis
 \paragraph{Results.} \todo{E1 fidelity vs grammar / retrieval / autoregressive / image-space
 baselines; E2 orbit pooling vs projection; E3 data efficiency; E4 weavability; E5 weaver study;
 E6 woven case study.}
+
+\paragraph{Sampling order.} The bias of confidence ordering is visible even without context: for
+a stub denoiser that gives every cell the motif colour with probability 0.2, ancestral sampling
+produced 20.2\,\% motif cells, MaskGIT ordering 1.8\,\% without and 9.6\,\% with Gumbel noise of
+scale 4.5 (8 samples of $32\times32$ cells, 16 steps). In a preliminary run (4\,M-parameter model, procedural data only,
+$32\times32$ cells, 24 samples per style) MaskGIT ordering with unit Gumbel noise and 16 steps
+returned a single-colour grid for 75\,\% of Moirang phee samples and 46\,\% of motif-tile samples,
+whereas ancestral sampling returned none. Ancestral sampling with 32 steps and guidance $w=1$ came
+within 0.01 of the best $3\times3$ pattern-JS and 0.02 of the best row run-length distance among
+the settings tried, and is our default.
+\todo{repeat with the final models (part of the ablations)}
 
 \paragraph{Digitisation (synthetic benchmark).}
 Table~\ref{tab:digitise} reports results on synthetic photographs (perspective, blur, uneven

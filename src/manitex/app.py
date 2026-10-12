@@ -268,7 +268,7 @@ def build_app(checkpoint: str | None = None):
                             palette_text = gr.Textbox(label="Custom palette (hex, most frequent first)",
                                                       placeholder="#F1EADB, #A61E22, #1F1A17")
                         with gr.Accordion("Sampler", open=False):
-                            steps = gr.Slider(4, 48, value=16, step=1, label="Steps")
+                            steps = gr.Slider(4, 64, value=32, step=1, label="Steps (fewer = faster)")
                             temperature = gr.Slider(0.5, 1.5, value=1.0, step=0.05, label="Temperature")
                             guidance = gr.Slider(0.0, 4.0, value=1.0, step=0.1, label="Guidance")
                         with gr.Row():

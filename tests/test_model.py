@@ -144,6 +144,33 @@ def test_sampler_stripes_rows():
         assert all(len(np.unique(r)) == 1 for r in g)
 
 
+class FixedMarginals(torch.nn.Module):
+    """Stub denoiser: the same colour distribution for every cell, whatever the context."""
+
+    def __init__(self, probs):
+        super().__init__()
+        self.logits = torch.nn.Parameter(torch.tensor(probs).log())
+        self.cfg = type("Cfg", (), {"vocab": len(probs), "patch": 1})()
+        self.mask_id = len(probs)
+        self.null_style = self.null_ncolors = self.null_domain = 0
+
+    def forward(self, x, style, ncolors, domain):
+        return self.logits.expand(*x.shape, -1).clone()
+
+
+def test_ancestral_sampling_is_unbiased_and_confidence_order_is_not():
+    m = FixedMarginals([0.8, 0.2])
+    g = sample(m, 8, 32, 32, config=SamplerConfig(strategy="random", steps=16, cfg=0.0),
+               generator=torch.Generator().manual_seed(0))
+    assert abs((g == 1).float().mean().item() - 0.2) < 0.02  # 8192 cells: std ~0.004
+    gc = sample(m, 8, 32, 32, config=SamplerConfig(strategy="confidence", steps=16, cfg=0.0, noise=0.0),
+                generator=torch.Generator().manual_seed(0))
+    assert (gc == 1).float().mean().item() < 0.1  # most confident (ground) cells are revealed first
+    assert SamplerConfig().strategy == "random"
+    with pytest.raises(ValueError):
+        sample(m, 1, 4, 4, config=SamplerConfig(strategy="greedy"))
+
+
 # --------------------------------------------------------------------------- data
 
 
