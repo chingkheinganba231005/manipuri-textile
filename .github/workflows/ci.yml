@@ -23,7 +23,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -e ".[dev,hub]" gradio
+          pip install -e ".[dev,hub,image-baseline]" gradio
       - name: Lint
         run: ruff check src tests scripts
       - name: Tests

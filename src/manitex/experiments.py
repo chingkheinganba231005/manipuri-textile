@@ -58,6 +58,14 @@ def reference_designs(style: str, n: int, size: int | tuple[int, int], shards: S
     return out
 
 
+def stored_designs(shards: Sequence, style: str, n: int, size: int | tuple[int, int], seed: int = 0) -> list[Design]:
+    """The first ``n`` designs of ``style`` stored in ``shards`` (e.g. samples of an external
+    generator), each cropped to ``size`` (wrapping if smaller) - every design is used once."""
+    rng = np.random.default_rng(seed)
+    found = [sh.design(j) for sh in shards for j in range(len(sh)) if str(sh.styles[j]) == style][:n]
+    return [crop_design(d, size, rng) for d in found]
+
+
 def reference_grids(style: str, n: int, size: int | tuple[int, int], shards: Sequence | None = None,
                     seed: int = 0) -> list[np.ndarray]:
     """The grids of :func:`reference_designs` (int64)."""

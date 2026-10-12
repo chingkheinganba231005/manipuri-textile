@@ -289,8 +289,12 @@ attention over single cells in raster order (patch size 1); position $i$ receive
 $i-1$ and the rotary position of cell $i$, so its likelihood is exact, whereas the masked model
 reports an upper bound. It needs $HW$ sequential sampling steps (with a key/value cache), about
 five times the training compute per grid, and imposes symmetry only by copying already generated
-orbit members, without looking ahead. \todo{(iv) image-space latent diffusion + digitisation.}
-Models are compared at equal size and data.
+orbit members, without looking ahead. (iv)~Image-space generation: LoRA adapters
+\cite{hu2022lora} of a pretrained latent diffusion model \cite{rombach2022high} are fine-tuned on the training designs
+rendered as flat colour blocks of $8\times8$ pixels ($64\times64$ cells $=512^2$ pixels); generated
+images are digitised (Sec.~\ref{sec:digitise}) with the cell count given and without structural
+regularisation, so the grids reflect what the image model produced. Grid models are compared at
+equal size and data.
 
 \paragraph{Results.} \todo{E1 fidelity vs grammar / retrieval / autoregressive / image-space
 baselines; E2 orbit pooling vs projection; E3 data efficiency; E4 weavability; E5 weaver study;

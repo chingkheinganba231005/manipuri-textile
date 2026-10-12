@@ -13,7 +13,9 @@ Rows per style:
 * ``retrieval``: random crops of training designs (``--train``) - matches the training data
   but creates nothing new (its novelty is ~0);
 * one row per ``--model name=checkpoint``: samples from a trained model (masked diffusion or
-  the autoregressive baseline) with the library's default sampler settings.
+  the autoregressive baseline) with the library's default sampler settings;
+* one row per ``--designs name=shard``: designs produced elsewhere, e.g. the digitised samples of
+  the image-space baseline (``scripts/image_baseline.py sample``).
 
 Columns: palette-independent pattern statistics, run lengths, colour counts, mirror symmetry,
 diversity; ``novelty`` / ``memorised`` (structural distance to the nearest training window and
@@ -30,7 +32,7 @@ import time
 import numpy as np
 import torch
 
-from manitex.experiments import model_nll, reference_designs, write_tables
+from manitex.experiments import model_nll, reference_designs, stored_designs, write_tables
 from manitex.generate import GenerationOptions, TextileGenerator
 from manitex.metrics import evaluate, weavability
 from manitex.models.config import DOMAINS
@@ -57,6 +59,8 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", action="append", default=[], metavar="NAME=CHECKPOINT",
                     help="a trained model to evaluate (repeatable; checkpoint .pt, slim export or hf://)")
+    ap.add_argument("--designs", action="append", default=[], metavar="NAME=SHARD",
+                    help="precomputed designs to evaluate, e.g. the image baseline's (repeatable)")
     ap.add_argument("--styles", default=None, help="comma-separated (default: styles of the first model, "
                     "else the grammar's)")
     ap.add_argument("--reference", default=None, help="held-out shard file(s)/dir (default: procedural designs)")
@@ -82,6 +86,12 @@ def main() -> None:
         if not sep:
             raise SystemExit(f"--model expects NAME=CHECKPOINT, got {spec!r}")
         models[name] = TextileGenerator.from_pretrained(path, device=args.device)
+    stored = {}
+    for spec in args.designs:
+        name, sep, path = spec.partition("=")
+        if not sep:
+            raise SystemExit(f"--designs expects NAME=SHARD, got {spec!r}")
+        stored[name] = read_shards(path.split(","))
     if args.styles:
         styles = args.styles.split(",")
     elif models:
@@ -109,6 +119,10 @@ def main() -> None:
         if train_shards is not None:
             retr = reference_designs(style, args.n, args.size, train_shards, seed=args.seed + 40_000)
             rows["retrieval"] = score(retr, ref, train_grids, args.n_weave)
+        for name, shards in stored.items():
+            designs = stored_designs(shards, style, args.n, args.size, seed=args.seed)
+            if designs:
+                rows[name] = score(designs, ref, train_grids, args.n_weave)
         for name, gen in models.items():
             designs = []
             for i in range(0, args.n, args.batch):

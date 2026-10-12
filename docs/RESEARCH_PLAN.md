@@ -75,11 +75,13 @@ condition dropout, domain tag on/off, flips, model size (tiny → large); at sam
 order (ancestral vs MaskGIT confidence), steps and guidance (`scripts/ablate_sampler.py`).
 See `configs/ablations/README.md`.
 
-**Baselines.** Implemented: the grammar, retrieval of training crops, and an autoregressive
+**Baselines** (all implemented): the grammar; retrieval of training crops; an autoregressive
 raster-order transformer on cells (same backbone with causal attention, patch 1, exact likelihood,
 KV-cached sampling; `configs/train/baseline_ar_small.yaml`, ~5× the compute of the masked model
-per sample at equal data). Still to implement: the image-space pipeline (fine-tune an open latent
-diffusion model on rendered designs, then digitise its outputs with `manitex digitise`).
+per sample at equal data); and the image-space pipeline (`scripts/image_baseline.py`): LoRA
+fine-tuning of an open latent diffusion model on designs rendered at 8 px per cell (64 cells =
+512 px), sampling, then digitisation with the cell count known and no structural clean-up, so
+the grids reflect what the image model produced.
 
 **Likelihoods.** The masked model reports an upper bound (ELBO) on the NLL, the autoregressive
 model the exact NLL, so a lower AR number can partly reflect the gap of the bound; report both and

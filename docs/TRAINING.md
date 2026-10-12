@@ -86,6 +86,23 @@ same data as `pretrain_small`, but its 4096-token sequences cost about 5× the c
 micro-batches of 32 × 8: roughly 20–45 h on an A100. Its `eval_bits_per_cell_ema` is an exact NLL; the masked model's is an
 upper bound. Sampling takes one step per cell (with a key/value cache).
 
+### Image-space baseline (experiment E1)
+
+```bash
+pip install -e ".[image-baseline]"          # diffusers, transformers, peft
+python scripts/image_baseline.py train --shards data/real/train.npz --procedural-weight 0.2 \
+    --steps 5000 --out runs/image_baseline
+python scripts/image_baseline.py sample --lora runs/image_baseline/lora --n 256 \
+    --out results/image_baseline
+python scripts/eval_generators.py --designs image=results/image_baseline/designs.npz ...
+```
+
+LoRA adapters of an open latent diffusion model (default
+`stable-diffusion-v1-5/stable-diffusion-v1-5`, downloaded from the Hugging Face Hub; check its
+licence) are fine-tuned on designs rendered at 8 px per cell; generated 512 px images are
+digitised back into 64×64-cell designs. Use the same training designs as the grid models (with
+`--shards` only, or with procedural designs mixed in) for a fair comparison.
+
 ## 4. Real data
 
 Follow [DATA_COLLECTION.md](DATA_COLLECTION.md) to photograph textiles with consent, then:
