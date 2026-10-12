@@ -1,0 +1,15 @@
+# Tiny CPU run to check that everything works end to end (a few minutes).
+out_dir: runs/debug_cpu
+model: tiny
+crop: 32
+batch_size: 32
+steps: 500
+lr: 1.0e-3
+warmup: 50
+ema_decay: 0.99
+precision: fp32
+num_workers: 2
+eval_every: 250
+eval_size: 64
+sample_every: 500
+save_every: 250

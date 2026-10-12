@@ -1,0 +1,27 @@
+# Quick pretraining on the procedural grammar (~32M parameters).
+# 48 TFLOP per step: roughly 4-9 hours for 50k steps on an A100 (see docs/TRAINING.md).
+out_dir: runs/pretrain_small
+model: small            # d_model 384, depth 12, heads 6, patch 2
+crop: 64                # 64x64 design cells -> 32x32 = 1024 tokens
+batch_size: 128         # x grad_accum 2 = 256 per step; ~41 GB of activations (322 MB/sample)
+grad_accum: 2
+steps: 50000
+lr: 4.0e-4
+warmup: 2000
+weight_decay: 0.05
+ema_decay: 0.9995
+precision: bf16
+compile: true
+num_workers: 16
+schedule: cosine
+weighting: mean
+p_uncond: 0.1
+p_drop_field: 0.1
+eval_every: 2000
+eval_size: 512
+sample_every: 5000
+save_every: 5000
+data:
+  - type: procedural
+    weight: 1.0
+    styles: {moirang_phee: 0.3, phanek_mayek_naibi: 0.25, banded_motif: 0.2, check: 0.1, motif_tile: 0.15}
