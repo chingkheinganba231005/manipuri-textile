@@ -316,7 +316,12 @@ $w=1$ (pattern-JS 0.078, run-length 2.59, colour count 0.28) is our default.
 
 \paragraph{Digitisation (synthetic benchmark).}
 Table~\ref{tab:digitise} reports results on synthetic photographs (perspective, blur, uneven
-lighting, sensor noise, JPEG) of $40\times48$-cell designs with exact ground truth.
+lighting, sensor noise, JPEG) of $40\times48$-cell designs with exact ground truth. The
+digitiser's parameters were tuned on these photographs; on six further seeds held out from all
+tuning, assisted cell accuracy is 0.968, automatic pixel accuracy 0.929 and clean automatic pixel
+accuracy 0.998. Automatic grid fitting often returns a finer grid at the scale of single picks or
+ends; this is faithful for most styles but not for checks, whose crossings must be read as optical
+mixtures, so we recommend giving the cell counts.
 \todo{add the real-photo subset with manually corrected ground truth}
 
 \begin{table}[t]

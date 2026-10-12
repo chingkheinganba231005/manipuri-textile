@@ -108,12 +108,22 @@ perspective, blur, uneven light, noise and JPEG; 40×48-cell designs):
 
 (Automatic mode also recovers the exact grid size in 20 % of cases; otherwise it returns an
 equivalent finer or coarser grid, which is why pixel accuracy is the relevant measure. Mean time
-≈ 2 s per photo on one CPU core.)
+≈ 2–3 s per photo on one CPU core.) The digitiser's parameters were tuned on these seeds; on six
+further seeds held out from all tuning (`--seed-offset 6`): assisted 0.968, automatic 0.929, exact
+grid 27 %, clean automatic 0.998, clean assisted exact 100 %. Report the held-out numbers.
 
-Known weakness: automatic grid fitting can lock onto yarn-level structure when ground picks are
-clearly visible between pattern picks (it then returns a finer, still faithful grid). A
-*texton-based* grid inference (the coarsest grid whose cells share a repeating internal texture)
-is planned; the assisted mode (cells across/down given) is exact on clean inputs.
+Known weakness: automatic grid fitting often locks onto yarn-level structure (single ends, picks
+or pairs of picks: 3–6 px for the 12 px cells of the benchmark) and returns a finer grid. That grid
+is usually faithful, but not for checks, where yarn-level cells resolve warp and weft separately
+instead of their optical mixture (pixel accuracy down to 0.5). Tried and **not adopted**:
+re-selecting integer multiples ``C`` of the detected period with blur matched to ``C`` (σ = C/3).
+It raised the exact-grid rate from 20–27 % to 40–53 % but lowered mean pixel accuracy, because
+one-cell design features vanish at that blur and too-coarse grids pass. Also requiring consistency
+at σ = C/6 removed those failures but left only small gains (+7 points exact grid, pixel accuracy
+unchanged) at twice the run time. Edge statistics alone do not separate thread texture from fine
+design detail. Planned: a small network trained on synthetic photos (`manitex.digitise.synth`
+gives unlimited exact ground truth) to predict the cell size. Until then, give the cell counts:
+assisted mode is 97–99 % accurate.
 
 Model sanity check (CPU, 4.1 M parameters, 32×32 crops, batch 32, procedural data only): the
 held-out NLL bound (EMA weights) was 0.294 bits/cell after 500 steps, 0.218 after 1 k and 0.131
