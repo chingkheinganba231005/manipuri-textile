@@ -180,12 +180,14 @@ def main() -> None:
               f"{r['samples_per_s']:.0f} samples/s" + (f", peak {r['peak_memory_gb']:.1f} GB" if "peak_memory_gb" in r else "")
               + f" -> {cfg.steps} steps ~ {span} (plus evaluation and sample sheets)")
         del model, stream, obj, opt
-        if args.probe:
+        if args.probe and device.type != "cuda":
+            print("--probe needs a CUDA GPU (batches of this size would exhaust the memory of a CPU); skipped")
+        elif args.probe:
             report["probe"] = probe(cfg, device)
             for p in report["probe"]:
                 print("  probe", json.dumps({k: (round(v, 3) if isinstance(v, float) else v) for k, v in p.items()}))
             eff = cfg.batch_size * cfg.grad_accum
-            best = suggest(report["probe"], eff, env.get("memory_gb")) if device.type == "cuda" else None
+            best = suggest(report["probe"], eff, env.get("memory_gb"))
             if best:
                 report["suggestion"] = best
                 print(f"suggestion: batch_size={best['batch_size']} grad_accum={best['grad_accum']} "
