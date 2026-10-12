@@ -1,10 +1,11 @@
-# Main pretraining run on the procedural grammar (~100M parameters, DiT-B scale).
-# A100 80GB, bf16 + torch.compile: roughly 12-20 hours for 150k steps.
+# Main pretraining run on the procedural grammar (~129M parameters, DiT-B scale).
+# 134 TFLOP per step: roughly 1-2 days for 100k steps on an A100 (see docs/TRAINING.md).
+# Check the eval curve of pretrain_small first; shorten with steps=... if it flattens early.
 out_dir: runs/pretrain_base
 model: base             # d_model 768, depth 12, heads 12, patch 2
 crop: 64
 batch_size: 256
-steps: 150000
+steps: 100000
 lr: 3.0e-4
 warmup: 5000
 weight_decay: 0.05
