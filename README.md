@@ -45,6 +45,12 @@ pytest -q                                                             # ~160 tes
 Python ≥ 3.10. Only `numpy`, `pillow`, `scipy`, `pyyaml` are needed for the grammar, compiler,
 renderer and digitiser; `torch` for the model; `gradio` for the demo.
 
+**No GPU machine? Use Google Colab.** The notebook installs the code, checks and times the GPU,
+trains the small model with checkpoints on Google Drive, makes designs with weaving instructions
+and exports the model: choose a G4, A100 or H100 runtime and run the cells in order.
+
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/chingkheinganba231005/manipuri-textile/blob/main/notebooks/manitex_colab.ipynb)
+
 ## Quick start
 
 ```bash
@@ -110,6 +116,7 @@ designs = gen.generate("moirang_phee", n=8, height=64, width=64, n_colors=3,
 src/manitex/        design, color, constraints, procedural/, weave/, render/, digitise/,
                     models/, data/, train.py, generate.py, metrics.py, cli.py, app.py
 configs/            training configs (one 80–96 GB GPU) and ablation notes
+notebooks/          Colab notebook that runs the project on a GPU (tested as a CPU dry run)
 scripts/            experiments (eval_generators.py: E1, eval_constraints.py: E2, image_baseline.py,
                     ablate_sampler.py, make_splits.py: E3, make_study_set.py: E5, benchmark_digitise.py
                     and eval_digitise_real.py: E7), make_figures.py, build_space.py

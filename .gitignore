@@ -18,6 +18,7 @@ venv/
 /runs/
 /checkpoints/
 /outputs/
+/manitex_outputs/
 /exports/
 /wandb/
 *.ckpt

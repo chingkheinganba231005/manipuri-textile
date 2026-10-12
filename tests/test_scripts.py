@@ -1,6 +1,7 @@
 """End-to-end runs of the experiment scripts on tiny inputs (they must keep working)."""
 
 import csv
+import importlib.util
 import json
 import subprocess
 import sys
@@ -118,3 +119,17 @@ def test_space_builds(tmp_path):
         assert any("whl/cpu" in r for r in req) == (hw == "cpu") and (tmp_path / hw / "manitex" / "app.py").exists()
     assert "spaces" in (tmp_path / "zerogpu" / "requirements.txt").read_text().split()
     assert "whl/cu128" in (tmp_path / "gpu" / "requirements.txt").read_text()
+
+
+def test_gpu_benchmark_batch_suggestion():
+    pytest.importorskip("torch")
+    spec = importlib.util.spec_from_file_location("benchmark_gpu", ROOT / "scripts" / "benchmark_gpu.py")
+    bench = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bench)
+    probe = [{"micro_batch": 128, "peak_memory_gb": 41.0}, {"micro_batch": 256, "peak_memory_gb": 82.0}]
+    assert bench.suggest(probe, 256, 96.0) == {"batch_size": 128, "grad_accum": 2}  # 82 GB > 85% of 96 GB
+    assert bench.suggest(probe, 256, 102.0) == {"batch_size": 256, "grad_accum": 1}  # a 96 GiB card reports ~102 GB
+    probe[1] = {"micro_batch": 256, "out_of_memory": True}
+    assert bench.suggest(probe, 256, 102.0) == {"batch_size": 128, "grad_accum": 2}
+    assert bench.suggest([{"micro_batch": 64, "peak_memory_gb": 99.0}], 256, 96.0) is None
+    assert bench.suggest([{"micro_batch": 64, "peak_memory_gb": 99.0}], 256, None) == {"batch_size": 64, "grad_accum": 4}

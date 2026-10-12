@@ -24,6 +24,8 @@ import time
 
 import torch
 
+MEMORY_FRACTION = 0.85  # largest share of the GPU's memory a suggested micro-batch may use (headroom for fragmentation)
+
 
 def environment() -> dict:
     info: dict = {"torch": torch.__version__, "cuda_build": torch.version.cuda, "cuda_available": torch.cuda.is_available()}
@@ -130,6 +132,17 @@ def probe(cfg, device: torch.device, steps: int = 2) -> list[dict]:
     return results
 
 
+def suggest(results: list[dict], effective_batch: int, total_gb: float | None) -> dict | None:
+    """The largest probed micro-batch whose measured peak memory leaves headroom, as the config
+    overrides ``{"batch_size", "grad_accum"}`` that keep the effective batch; None if none fits."""
+    fits = [p for p in results if not p.get("out_of_memory")
+            and (total_gb is None or p.get("peak_memory_gb", 0) <= MEMORY_FRACTION * total_gb)]
+    if not fits:
+        return None
+    micro = max(p["micro_batch"] for p in fits)
+    return {"batch_size": micro, "grad_accum": effective_batch // micro}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", default=None, help="training config to benchmark")
@@ -169,16 +182,15 @@ def main() -> None:
         del model, stream, obj, opt
         if args.probe:
             report["probe"] = probe(cfg, device)
-            eff = cfg.batch_size * cfg.grad_accum
-            total = env.get("memory_gb")
-            fits = [p for p in report["probe"] if not p.get("out_of_memory")
-                    and (total is None or p.get("peak_memory_gb", 0) <= 0.9 * total)]
             for p in report["probe"]:
                 print("  probe", json.dumps({k: (round(v, 3) if isinstance(v, float) else v) for k, v in p.items()}))
-            if fits and device.type == "cuda":
-                best = max(fits, key=lambda p: p["micro_batch"])
-                print(f"suggestion: batch_size={best['micro_batch']} grad_accum={eff // best['micro_batch']} "
-                      f"(same effective batch {eff}; eager-mode memory, torch.compile uses less)")
+            eff = cfg.batch_size * cfg.grad_accum
+            best = suggest(report["probe"], eff, env.get("memory_gb")) if device.type == "cuda" else None
+            if best:
+                report["suggestion"] = best
+                print(f"suggestion: batch_size={best['batch_size']} grad_accum={best['grad_accum']} "
+                      f"(same effective batch {eff}, peak memory <= {MEMORY_FRACTION:.0%} of the GPU in eager "
+                      "mode; torch.compile uses less)")
     if args.json:
         with open(args.json, "w") as f:
             json.dump(report, f, indent=1, default=str)

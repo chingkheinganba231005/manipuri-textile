@@ -5,6 +5,13 @@ single GPU with 80–96 GB of memory: an A100 80 GB, an H100, or the RTX PRO 600
 of Google Cloud G4 machines. Time estimates below assume an A100; measure your own GPU with
 `scripts/benchmark_gpu.py` (step 2) before starting long runs.
 
+**Colab.** `notebooks/manitex_colab.ipynb` covers steps 1–3, 7 and 8 of this guide as one notebook
+(setup, GPU check and speed test, sanity run, training with checkpoints on Google Drive that
+resumes after a disconnect, samples, weaving instructions, export, demo and publishing): open it in
+Colab, choose a G4, A100 or H100 runtime and run the cells in order. Its `SMOKE_TEST` switch runs
+the same cells on a tiny model in a few minutes on any runtime, and `tests/test_notebook.py` runs
+that dry run on CPU, so the notebook cannot silently go stale.
+
 ## 1. Environment
 
 ```bash
