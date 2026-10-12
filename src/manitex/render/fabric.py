@@ -39,7 +39,7 @@ class RenderOptions:
     face_mode: str = "auto"  # 'auto' | 'balanced' | 'weft' | 'warp'
     warp_cover: float | None = None  # override the face preset
     weft_cover: float | None = None
-    spread: float = 0.65  # pattern-float spread over neighbouring picks, in ground-pick heights
+    spread: float = 0.85  # pattern-float spread over neighbouring picks of the same design row, in pick heights
     ambient: float = 0.42
     diffuse: float = 0.68
     specular: float = 0.10
@@ -183,6 +183,9 @@ def render_draft(draft: WeaveDraft, options: RenderOptions | None = None, **kw) 
         dist = np.minimum(d_lo, d_hi)
         half = heights[pick_near] / 2.0 + opt.spread * pick_px
         within = dist <= half
+        if (draft.pick_row >= 0).all():
+            # floats bulge over the ground picks of their own design row only
+            within &= draft.pick_row[pick_of_y] == draft.pick_row[pick_near]
         if within.any():
             rows_y = np.flatnonzero(within)
             q = pick_near[rows_y]

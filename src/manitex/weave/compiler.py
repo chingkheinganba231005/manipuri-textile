@@ -46,7 +46,8 @@ class CompileOptions:
     picks_per_cell: int = 1  # ground picks per design row (brocade) / picks per row (damask)
     max_float: int = 8  # longest allowed supplementary face float, in ends
     tie_stagger: str = "brick"  # 'brick' | 'twill' | 'aligned'
-    pattern_thickness: float = 1.5  # relative thickness of the supplementary yarn
+    pattern_thickness: float = 1.0  # space a pattern pick takes in the cloth, relative to a ground pick
+    balance_rows: bool = True  # add ground picks to plain rows so every design row has the same height
     damask_satin: int = 5
     bottom_up: bool = True  # weave the bottom image row first
     extra: dict[str, Any] = field(default_factory=dict)
@@ -277,20 +278,30 @@ def compile_brocade(design: Design, opt: CompileOptions) -> WeaveDraft:
     ground_count = 0
     supp_count = 0
     row_order = range(H - 1, -1, -1) if opt.bottom_up else range(H)
+    # rows without pattern picks get extra ground picks so that design rows keep a constant
+    # height in the cloth (one pattern pass per ground pick is the reference)
+    extra_ground = int(round(ppc * opt.pattern_thickness)) if (opt.balance_rows and pattern.any()) else 0
+
+    def emit_ground(r: int) -> None:
+        nonlocal ground_count
+        lifts.append(S[ground_count % sp, ends % se].astype(np.uint8))
+        kinds.append(PICK_GROUND)
+        colors.append(int(plan.weft[r]))
+        rows.append(r)
+        thick.append(1.0)
+        inlays.append(None)
+        ground_count += 1
+
     for r in row_order:
         row_cols = grid[r]
         row_pat = pattern[r]
         pat_colors = [int(c) for c in np.unique(row_cols[row_pat])]
+        if not pat_colors:
+            for _ in range(ppc + extra_ground):
+                emit_ground(r)
+            continue
         for _ in range(ppc):
-            lifts.append(S[ground_count % sp, ends % se].astype(np.uint8))
-            kinds.append(PICK_GROUND)
-            colors.append(int(plan.weft[r]))
-            rows.append(r)
-            thick.append(1.0)
-            inlays.append(None)
-            ground_count += 1
-            if not pat_colors:
-                continue
+            emit_ground(r)
             if opt.supplementary == "continuous":
                 for c in pat_colors:
                     vis = np.repeat(row_pat & (row_cols == c), epc)

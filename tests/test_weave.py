@@ -126,7 +126,9 @@ def test_brocade_motif_compile_properties():
                                    palette=d.palette)
                 pattern = d.grid != plan.appearance
                 assert dr.n_ends == d.width * 2
-                assert int((dr.pick_kind == PICK_GROUND).sum()) == d.height
+                n_pat_rows = int(pattern.any(axis=1).sum())
+                extra = 1 if pattern.any() else 0  # balance_rows with ppc=1, pattern_thickness=1
+                assert int((dr.pick_kind == PICK_GROUND).sum()) == n_pat_rows + (d.height - n_pat_rows) * (1 + extra)
                 # every visible supplementary crossing lies on a pattern cell of the right colour
                 face = dr.face()
                 for p in np.flatnonzero(dr.pick_kind == PICK_SUPPLEMENTARY):
@@ -147,7 +149,7 @@ def test_continuous_pick_count():
     grid[2, 6:8] = 2
     grid[4, 1:9] = 1
     d = Design(grid, [[255, 255, 255], [200, 0, 0], [0, 0, 0]])
-    dr = compile_design(d, ends_per_cell=1, picks_per_cell=1, max_float=4)
+    dr = compile_design(d, ends_per_cell=1, picks_per_cell=1, max_float=4, balance_rows=False)
     # 6 ground + row2: 2 colours + row4: 1 colour
     assert dr.n_picks == 6 + 2 + 1
     assert dr.meta["ground_mode"] == "none"
@@ -155,7 +157,7 @@ def test_continuous_pick_count():
     p = [q for q in range(dr.n_picks) if dr.pick_row[q] == 4 and dr.pick_kind[q] == PICK_SUPPLEMENTARY][0]
     assert dr.liftplan[p][1:9].sum() >= 1
     assert max_run(dr.liftplan[p][None] == 0, axis=1)[0] <= 4
-    dr2 = compile_design(d, ends_per_cell=1, supplementary="discontinuous")
+    dr2 = compile_design(d, ends_per_cell=1, supplementary="discontinuous", balance_rows=False)
     assert dr2.n_picks == 6 + 1 + 1
     p2 = [q for q in range(dr2.n_picks) if dr2.pick_row[q] == 2 and dr2.pick_kind[q] == PICK_SUPPLEMENTARY][0]
     assert set(dr2.inlay[p2][dr2.inlay[p2] >= 0].tolist()) == {1, 2}
@@ -335,3 +337,15 @@ def test_plaid_inference_and_compile():
     for seed in range(10):
         d = generate("moirang_phee", 48, 48, seed=seed)
         assert compile_design(d).meta["ground_mode"] != "plaid"
+
+
+def test_balance_rows_keeps_row_heights_uniform():
+    d = generate("moirang_phee", 40, 40, seed=4)
+    dr = compile_design(d, supplementary="discontinuous")  # one pattern pick per patterned row
+    heights = np.zeros(d.height)
+    np.add.at(heights, dr.pick_row, dr.weft_thickness)
+    assert np.allclose(heights, heights[0])
+    dr2 = compile_design(d, supplementary="discontinuous", balance_rows=False)
+    h2 = np.zeros(d.height)
+    np.add.at(h2, dr2.pick_row, dr2.weft_thickness)
+    assert not np.allclose(h2, h2[0])
