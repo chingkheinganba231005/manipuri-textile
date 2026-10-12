@@ -24,9 +24,9 @@ from pathlib import Path
 
 import numpy as np
 
+from manitex.experiments import reference_grids
 from manitex.generate import GenerationOptions, TextileGenerator
 from manitex.metrics import evaluate
-from manitex.procedural import PROCEDURAL_STYLES, generate
 
 DEFAULT_SETTINGS = ";".join([
     "strategy=confidence,steps=16,noise=1,top_p=1",  # MaskGIT ordering, little noise
@@ -65,25 +65,6 @@ def describe(opt: GenerationOptions) -> str:
     return ", ".join(f"{k}={getattr(opt, k)}" for k in keys)
 
 
-def references(style: str, n: int, size: int, shards, seed: int) -> list[np.ndarray]:
-    if shards is None:
-        if style not in PROCEDURAL_STYLES:
-            raise SystemExit(f"no procedural reference for style {style!r}; pass --reference")
-        return [generate(style, size, size, seed=seed + i).grid for i in range(n)]
-    from manitex.data.dataset import CropSpec, prepare_crop
-
-    rng = np.random.default_rng(seed)
-    pool = [(sh, j) for sh in shards for j in range(len(sh)) if str(sh.styles[j]) == style]
-    if not pool:
-        raise SystemExit(f"no reference designs of style {style!r} in the given shards")
-    crop = CropSpec(size, flip_lr=False, flip_ud=False)
-    out = []
-    for _ in range(n):
-        sh, j = pool[int(rng.integers(len(pool)))]
-        out.append(prepare_crop(sh.grid(j), crop, rng, sh.palette(j))[0])
-    return out
-
-
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--checkpoint", required=True, help="checkpoint .pt, slim export dir or hf://user/repo")
@@ -107,8 +88,8 @@ def main() -> None:
     settings = parse_settings(args.settings)
     results: dict[str, dict[str, dict[str, float]]] = {}
     for style in styles:
-        ref = references(style, args.n, args.size, shards, args.seed + 10_000)
-        ref2 = references(style, args.n, args.size, shards, args.seed + 20_000)
+        ref = reference_grids(style, args.n, args.size, shards, args.seed + 10_000)
+        ref2 = reference_grids(style, args.n, args.size, shards, args.seed + 20_000)
         floor = evaluate(ref2, ref)
         floor["collapse_rate"] = float(np.mean([len(np.unique(g)) == 1 for g in ref2]))
         results[style] = {"floor": floor}

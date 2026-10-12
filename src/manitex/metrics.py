@@ -9,8 +9,9 @@ on colour *partitions*, so they measure structure, not colour choice.
   along rows / columns (stripe widths, motif spans).
 * :func:`color_count_distance` - total variation between colour-count distributions.
 * :func:`symmetry_profile` - mirror and repeat scores (structural regularity).
-* :func:`diversity`, :func:`novelty` - mean pairwise distance within a set and nearest
-  training neighbour distance (memorisation check), both flip-invariant.
+* :func:`diversity` - mean flip- and palette-invariant Hamming distance within a set.
+* :func:`novelty` - structural distance to the closest window of any training design, over
+  all translations and flips (memorisation check).
 * :func:`weavability` - compiles designs and reports tie-down density, float lengths and
   loom requirements.
 """
@@ -145,37 +146,71 @@ def diversity(grids: Sequence[np.ndarray], max_pairs: int = 2000, seed: int = 0)
     return float(np.mean([hamming(grids[i], grids[j]) for i, j in pairs]))
 
 
-def novelty(gen: Sequence[np.ndarray], train: Sequence[np.ndarray], max_train: int = 5000, seed: int = 0) -> np.ndarray:
-    """Distance from every generated grid to its nearest training grid of the same size.
+def _edge_maps(g: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Where the colour changes between horizontal / vertical neighbours (palette-independent)."""
+    g = np.asarray(g)
+    return (g[:, 1:] != g[:, :-1]).astype(np.float64), (g[1:, :] != g[:-1, :]).astype(np.float64)
 
-    Training grids larger than the generated size contribute all their aligned crops on a
-    stride of half the generated size.  Values near 0 indicate memorisation.
+
+def _window_sums(b: np.ndarray, h: int, w: int) -> np.ndarray:
+    """Sums of every h x w window of a stack of maps (n, Hb, Wb) -> (n, Hb-h+1, Wb-w+1)."""
+    s = np.zeros((b.shape[0], b.shape[1] + 1, b.shape[2] + 1))
+    s[:, 1:, 1:] = b.cumsum(1).cumsum(2)
+    return s[:, h:, w:] - s[:, :-h, w:] - s[:, h:, :-w] + s[:, :-h, :-w]
+
+
+def novelty(gen: Sequence[np.ndarray], train: Sequence[np.ndarray], max_train: int | None = None,
+            seed: int = 0) -> np.ndarray:
+    """Structural distance from every generated grid to the closest window of any training design.
+
+    Grids are compared through their maps of colour changes between horizontally and vertically
+    adjacent cells, which do not depend on the palette.  The distance is the fraction of
+    neighbour pairs whose change / no-change status differs, minimised over every translation
+    of the window inside every training design and over the four flips (FFT
+    cross-correlation, exact).  Values near 0 mean the design copies part of a training design
+    (memorisation).  Training designs smaller than a generated grid wrap around, as in training;
+    ``max_train`` limits the number of training designs (random subset).
     """
-    rng = np.random.default_rng(seed)
-    out = []
-    for g in gen:
-        H, W = g.shape
-        cands = []
+    train = [np.asarray(t) for t in train]
+    if max_train is not None and len(train) > max_train:
+        rng = np.random.default_rng(seed)
+        train = [train[i] for i in rng.choice(len(train), max_train, replace=False)]
+    out = np.full(len(gen), np.nan)
+    by_size: dict[tuple[int, int], list[int]] = {}
+    for i, g in enumerate(gen):
+        by_size.setdefault(tuple(np.asarray(g).shape), []).append(i)
+    for (H, W), idx in by_size.items():
+        n_h, n_v = H * (W - 1), (H - 1) * W
+        if not train or n_h + n_v == 0:
+            continue
+        groups: dict[tuple[int, int], list[np.ndarray]] = {}
         for t in train:
             if t.shape[0] < H or t.shape[1] < W:
-                continue
-            for y in range(0, t.shape[0] - H + 1, max(1, H // 2)):
-                for x in range(0, t.shape[1] - W + 1, max(1, W // 2)):
-                    cands.append(t[y : y + H, x : x + W])
-        if len(cands) > max_train:
-            cands = [cands[i] for i in rng.choice(len(cands), max_train, replace=False)]
-        if not cands:
-            out.append(np.nan)
-            continue
-        cg = canonicalize_grid(g)[0]
-        variants = np.stack(_canon_variants(np.asarray(g)))
-        best = 1.0
-        stack = np.stack([canonicalize_grid(c)[0] for c in cands])  # (N, H, W)
-        for v in variants:
-            best = min(best, float((stack != v[None]).mean(axis=(1, 2)).min()))
-        del cg
-        out.append(best)
-    return np.array(out)
+                t = np.pad(t, ((0, max(0, H - t.shape[0])), (0, max(0, W - t.shape[1]))), mode="wrap")
+            groups.setdefault(t.shape, []).append(t)
+        prepared = []
+        for (Ht, Wt), ts in groups.items():
+            maps = [_edge_maps(t) for t in ts]
+            eh, ev = np.stack([m[0] for m in maps]), np.stack([m[1] for m in maps])
+            prepared.append((Ht, Wt,
+                             np.fft.rfft2(eh) if n_h else None, _window_sums(eh, H, W - 1) if n_h else None,
+                             np.fft.rfft2(ev) if n_v else None, _window_sums(ev, H - 1, W) if n_v else None))
+        for i in idx:
+            g = np.asarray(gen[i])
+            best = 1.0
+            for f in (g, g[:, ::-1], g[::-1, :], g[::-1, ::-1]):
+                ah, av = _edge_maps(f)
+                for Ht, Wt, fh, sh, fv, sv in prepared:
+                    match = 0.0
+                    if n_h:  # matching pairs = 2 * overlap + n - (changes in a) - (changes in window)
+                        c = np.fft.irfft2(np.conj(np.fft.rfft2(ah, s=(Ht, Wt - 1)))[None] * fh, s=(Ht, Wt - 1))
+                        match = match + 2 * np.rint(c[:, : Ht - H + 1, : Wt - W + 1]) + n_h - ah.sum() - sh
+                    if n_v:
+                        c = np.fft.irfft2(np.conj(np.fft.rfft2(av, s=(Ht - 1, Wt)))[None] * fv, s=(Ht - 1, Wt))
+                        match = match + 2 * np.rint(c[:, : Ht - H + 1, : Wt - W + 1]) + n_v - av.sum() - sv
+                    best = min(best, float(1.0 - np.max(match) / (n_h + n_v)))
+            out[i] = max(best, 0.0)
+    return out
 
 
 def weavability(designs: Sequence[Design], max_float: int = 8, ends_per_cell: int = 2) -> dict[str, float]:

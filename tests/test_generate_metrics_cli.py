@@ -51,6 +51,15 @@ def test_symmetry_diversity_novelty():
     assert np.allclose(nov, 0.0)
     far = novelty([np.zeros((24, 24), int)], grids[2:])
     assert far[0] > 0
+    # copies are found at any offset, flipped and recoloured, inside larger training designs
+    big = generate("moirang_phee", 40, 56, seed=7).grid
+    copy = big[5:29, 11:35][::-1, :]
+    copy = np.random.default_rng(0).permutation(int(copy.max()) + 1)[copy]
+    noise = np.random.default_rng(1).integers(0, 3, (24, 24))
+    nov = novelty([copy, noise], [grids[0], big])
+    assert nov[0] == 0.0 and nov[1] > 0.2
+    small = generate("check", 10, 12, seed=2).grid  # smaller than the generated size: wraps around
+    assert novelty([np.tile(small, (3, 2))[:24, :24]], [small])[0] == 0.0
 
 
 def test_weavability_and_evaluate():
