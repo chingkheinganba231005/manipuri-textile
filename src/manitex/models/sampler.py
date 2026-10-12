@@ -79,6 +79,10 @@ def sample(
     (inpainting).  ``orbits``: explicit orbit map (overrides ``symmetry``).
     """
     cfg = config or SamplerConfig()
+    if cfg.strategy not in ("random", "confidence"):
+        raise ValueError(f"unknown sampling strategy {cfg.strategy!r}")
+    if not 0.0 < cfg.top_p <= 1.0:
+        raise ValueError(f"top_p must be in (0, 1], got {cfg.top_p}")
     model.eval()
     dev = torch.device(device) if device is not None else next(model.parameters()).device
     if generator is not None and generator.device.type != dev.type:
@@ -167,8 +171,6 @@ def sample(
         conf = logq.gather(-1, draw.unsqueeze(-1)).squeeze(-1)
 
         last = s == steps - 1
-        if cfg.strategy not in ("random", "confidence"):
-            raise ValueError(f"unknown sampling strategy {cfg.strategy!r}")
         if cfg.strategy == "random":
             r_now = mask_ratio(torch.tensor(1.0 - s / steps), cfg.schedule).item()
             r_next = mask_ratio(torch.tensor(1.0 - (s + 1) / steps), cfg.schedule).item()

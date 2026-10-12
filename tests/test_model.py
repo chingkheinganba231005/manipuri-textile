@@ -179,6 +179,8 @@ def test_top_p_drops_the_tail():
     assert abs((g == 1).float().mean().item() - 0.2 / 0.9) < 0.02  # renormalised within the nucleus
     g = sample(m, 2, 8, 8, config=SamplerConfig(steps=4, cfg=0.0, top_p=0.6), generator=gen)
     assert (g == 0).all()
+    with pytest.raises(ValueError):
+        sample(m, 1, 4, 4, config=SamplerConfig(top_p=0.0))
 
 
 # --------------------------------------------------------------------------- data
