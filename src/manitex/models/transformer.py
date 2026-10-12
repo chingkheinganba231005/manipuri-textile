@@ -150,6 +150,7 @@ class GridTransformer(nn.Module):
     def num_params(self) -> int:
         return sum(p.numel() for p in self.parameters())
 
+    @torch.compiler.disable
     def _rope(self, h: int, w: int, device) -> tuple[torch.Tensor, torch.Tensor]:
         key = (h, w, str(device))
         if key not in self._rope_cache:

@@ -73,6 +73,9 @@ def sample(
     cfg = config or SamplerConfig()
     model.eval()
     dev = torch.device(device) if device is not None else next(model.parameters()).device
+    if generator is not None and generator.device.type != dev.type:
+        # random ops on CUDA tensors need a CUDA generator: re-seed one on the sampling device
+        generator = torch.Generator(device=dev).manual_seed(int(generator.initial_seed()))
     V = model.cfg.vocab
     MASK = model.mask_id
     p = model.cfg.patch

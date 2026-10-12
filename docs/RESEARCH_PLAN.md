@@ -77,12 +77,16 @@ perspective, blur, uneven light, noise and JPEG; 40×48-cell designs):
 
 | style | assisted cell acc. | automatic pixel acc. | clean image, automatic | clean image, assisted exact |
 |---|---|---|---|---|
-| phanek mayek naibi | 0.969 | 0.948 | 1.000 | 100 % |
-| Moirang phee | 0.991 | 0.953 | 1.000 | 100 % |
-| banded motif | 0.949 | 0.947 | 1.000 | 100 % |
-| check | 1.000 | 0.865 | 0.990 | 100 % |
-| motif tile | 0.920 | 0.843 | 0.987 | 100 % |
-| **overall** | **0.966** | **0.911** | **0.995** | **100 %** |
+| phanek mayek naibi | 1.000 | 0.965 | 1.000 | 100 % |
+| Moirang phee | 0.999 | 0.960 | 1.000 | 100 % |
+| banded motif | 0.946 | 0.962 | 1.000 | 100 % |
+| check | 1.000 | 0.873 | 0.990 | 100 % |
+| motif tile | 0.994 | 0.957 | 0.987 | 100 % |
+| **overall** | **0.988** | **0.943** | **0.995** | **100 %** |
+
+(Automatic mode also recovers the exact grid size in 20 % of cases; otherwise it returns an
+equivalent finer or coarser grid, which is why pixel accuracy is the relevant measure. Mean time
+≈ 2 s per photo on one CPU core.)
 
 Known weakness: automatic grid fitting can lock onto yarn-level structure when ground picks are
 clearly visible between pattern picks (it then returns a finer, still faithful grid). A

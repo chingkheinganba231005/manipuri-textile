@@ -280,17 +280,19 @@ lighting, sensor noise, JPEG) of $40\times48$-cell designs with exact ground tru
 \centering
 \caption{Digitisation on synthetic photographs (6 seeds per style). Assisted: corners and cell
 counts given (cell accuracy). Automatic: corners only (pixel accuracy, resolution independent).
-Clean: noise-free pixel-art inputs. \todo{update with the final run}}
+Clean: noise-free pixel-art inputs. Produced by \texttt{scripts/benchmark\_digitise.py}.}
 \label{tab:digitise}
 \begin{tabular}{lcccc}
 \toprule
 style & assisted & automatic & clean, automatic & clean, assisted exact \\
 \midrule
-phanek mayek naibi & \todo{} & \todo{} & \todo{} & \todo{} \\
-Moirang phee       & \todo{} & \todo{} & \todo{} & \todo{} \\
-banded motif       & \todo{} & \todo{} & \todo{} & \todo{} \\
-check              & \todo{} & \todo{} & \todo{} & \todo{} \\
-motif tile         & \todo{} & \todo{} & \todo{} & \todo{} \\
+phanek mayek naibi & 1.000 & 0.965 & 1.000 & 100\% \\
+Moirang phee       & 0.999 & 0.960 & 1.000 & 100\% \\
+banded motif       & 0.946 & 0.962 & 1.000 & 100\% \\
+check              & 1.000 & 0.873 & 0.990 & 100\% \\
+motif tile         & 0.994 & 0.957 & 0.987 & 100\% \\
+\midrule
+all                & 0.988 & 0.943 & 0.995 & 100\% \\
 \bottomrule
 \end{tabular}
 \end{table}
