@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Data, checkpoints and outputs (large / possibly sensitive - never commit raw community data)
+data/
+!data/README.md
+runs/
+checkpoints/
+outputs/
+wandb/
+*.ckpt
+*.pt
+*.safetensors
+
+# Space build output
+space_build/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+*.swp

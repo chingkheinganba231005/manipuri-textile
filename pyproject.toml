@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "manitex"
+version = "0.1.0"
+description = "Structure-aware generative modelling, digitisation and weaving-instruction compilation for Manipuri textile patterns (phanek, Moirang phee)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "manitex contributors" }]
+keywords = ["textiles", "weaving", "generative models", "discrete diffusion", "cultural heritage", "Manipur"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Multimedia :: Graphics",
+]
+dependencies = [
+    "numpy>=1.24",
+    "pillow>=10.0",
+    "scipy>=1.10",
+    "pyyaml>=6.0",
+    "tqdm>=4.60",
+]
+
+[project.optional-dependencies]
+train = ["torch>=2.2"]
+app = ["torch>=2.2", "gradio>=4.44"]
+hub = ["huggingface_hub>=0.23"]
+dev = ["pytest>=7.4", "ruff>=0.5"]
+all = ["torch>=2.2", "gradio>=4.44", "huggingface_hub>=0.23", "pytest>=7.4", "ruff>=0.5"]
+
+[project.scripts]
+manitex = "manitex.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+manitex = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = ["slow: tests that take more than a few seconds"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501", "B008", "B905"]
