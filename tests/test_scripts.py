@@ -99,3 +99,12 @@ def test_real_photo_digitisation_script(tmp_path):
     run("scripts/eval_digitise_real.py", tmp_path, "--out", tmp_path / "e7")
     res = json.loads((tmp_path / "e7.json").read_text())["real photographs"]
     assert res["p.png"]["assisted_cell_acc"] > 0.95
+
+
+def test_gpu_benchmark_script_runs_on_cpu(tmp_path):
+    out = run("scripts/benchmark_gpu.py", "--config", "configs/train/debug_cpu.yaml", "--steps", "2", "--warmup", "1",
+              "--device", "cpu", "--json", tmp_path / "b.json", "crop=8", "batch_size=2", "grad_accum=2",
+              "num_workers=0")
+    rep = json.loads((tmp_path / "b.json").read_text())
+    assert rep["benchmark"]["grad_accum"] == 2 and rep["benchmark"]["sec_per_optimizer_step"] > 0
+    assert "per step" in out

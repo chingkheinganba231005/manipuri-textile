@@ -38,7 +38,7 @@ PRESETS: dict[str, dict[str, Any]] = {
     "tiny": dict(d_model=128, depth=4, heads=4, cell_dim=16),
     # ~32M (DiT-S scale): quick experiments / demo model
     "small": dict(d_model=384, depth=12, heads=6, cell_dim=32),
-    # ~129M (DiT-B scale): main model on an A100
+    # ~129M (DiT-B scale): main model on one 80-96 GB GPU
     "base": dict(d_model=768, depth=12, heads=12, cell_dim=48),
     # ~457M (DiT-L scale): scaling experiments
     "large": dict(d_model=1024, depth=24, heads=16, cell_dim=64),

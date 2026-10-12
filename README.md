@@ -24,7 +24,8 @@ temple-like motifs. It covers the whole loop from photograph to loom:
 | **Demo** (`manitex.app`) | A Gradio studio (generate / weave / digitise), ready for Hugging Face Spaces. |
 
 > **Status.** The full pipeline is implemented and tested (CPU). No trained weights are shipped:
-> train on your GPU (an A100 80 GB is plenty — see [docs/TRAINING.md](docs/TRAINING.md)), and
+> train on your GPU (one 80–96 GB GPU such as an A100, H100 or RTX PRO 6000 is plenty — see
+> [docs/TRAINING.md](docs/TRAINING.md)), and
 > collect real textile data with the protocol in [docs/DATA_COLLECTION.md](docs/DATA_COLLECTION.md)
 > before making claims about authenticity. Until a checkpoint is configured, the demo uses the
 > procedural grammar.
@@ -36,9 +37,9 @@ temple-like motifs. It covers the whole loop from photograph to loom:
 ```bash
 git clone <this repo> && cd manipuri-textile
 python -m venv .venv && source .venv/bin/activate
-pip install torch --index-url https://download.pytorch.org/whl/cu124   # or /cpu
+pip install torch          # Linux wheel with CUDA 13; CUDA 12.x drivers: see docs/TRAINING.md
 pip install -e ".[all]"
-pytest -q                                                             # ~130 tests
+pytest -q                                                             # ~160 tests
 ```
 
 Python ≥ 3.10. Only `numpy`, `pillow`, `scipy`, `pyyaml` are needed for the grammar, compiler,
@@ -108,7 +109,7 @@ designs = gen.generate("moirang_phee", n=8, height=64, width=64, n_colors=3,
 ```
 src/manitex/        design, color, constraints, procedural/, weave/, render/, digitise/,
                     models/, data/, train.py, generate.py, metrics.py, cli.py, app.py
-configs/            training configs (A100) and ablation notes
+configs/            training configs (one 80–96 GB GPU) and ablation notes
 scripts/            experiments (eval_generators.py: E1, eval_constraints.py: E2, image_baseline.py,
                     ablate_sampler.py, make_splits.py: E3, make_study_set.py: E5, benchmark_digitise.py
                     and eval_digitise_real.py: E7), make_figures.py, build_space.py

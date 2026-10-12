@@ -1,47 +1,64 @@
-# Training guide (single A100 80 GB)
+# Training guide (one 80–96 GB GPU)
 
-This guide takes you from a fresh machine to a trained, exported model and a running demo.
-Timings are rough estimates; measure on your machine with the first few hundred steps.
+This guide takes you from a fresh machine to a trained, exported model and a running demo on a
+single GPU with 80–96 GB of memory: an A100 80 GB, an H100, or the RTX PRO 6000 Blackwell (96 GB)
+of Google Cloud G4 machines. Time estimates below assume an A100; measure your own GPU with
+`scripts/benchmark_gpu.py` (step 2) before starting long runs.
 
 ## 1. Environment
 
 ```bash
-nvidia-smi                                   # check the GPU and the CUDA driver
+nvidia-smi                       # GPU, driver, and the newest CUDA version the driver supports
 python -m venv .venv && source .venv/bin/activate
-pip install torch --index-url https://download.pytorch.org/whl/cu124
+pip install torch                # Linux: the default wheel ships CUDA 13 (driver must support CUDA 13)
+# if nvidia-smi shows CUDA 12.x, use a CUDA 12.8 build instead (the oldest that supports Blackwell):
+#   pip install torch --index-url https://download.pytorch.org/whl/cu128
 pip install -e ".[all]"
-python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name())"
-pytest -q                                    # everything should pass
+pytest -q                        # everything should pass
 ```
 
-## 2. Sanity run (5 minutes)
+Blackwell GPUs (RTX PRO 6000, B200, RTX 50xx) need a PyTorch build with CUDA 12.8 or newer; the
+older `cu124` / `cu126` builds have no kernels for them. The A100 and H100 work with any recent
+build. PyTorch 2.4 or newer is required.
+
+## 2. Check the GPU and measure speed (10 minutes)
 
 ```bash
-manitex train --config configs/train/debug_cpu.yaml precision=bf16 num_workers=8
+python scripts/benchmark_gpu.py
+python scripts/benchmark_gpu.py --config configs/train/pretrain_small.yaml --steps 30 --probe
+manitex train --config configs/train/debug_cpu.yaml precision=bf16 num_workers=8   # 5-minute sanity run
 ```
 
-Look at `runs/debug_cpu/log.jsonl` (loss falls, `eval_bits_per_cell_ema` falls) and
-`runs/debug_cpu/samples/*.png` (one row per style).
+The first command checks that the installed PyTorch has kernels for your GPU (it warns
+otherwise) and measures the achieved bf16 matrix-multiply throughput. The second runs real
+training steps of a config and prints seconds per step, peak memory and the projected time for
+the whole run. `--probe` tries larger micro-batches and suggests `batch_size` / `grad_accum` for
+the same effective batch: a 96 GB card usually fits larger ones than the defaults, which are
+sized for 80 GB. For the sanity run, look at `runs/debug_cpu/log.jsonl` (loss and
+`eval_bits_per_cell_ema` fall) and `runs/debug_cpu/samples/*.png` (one row per style).
 
 ## 3. Pretraining on the procedural grammar
 
 The procedural stream is generated on the fly by the DataLoader workers (no dataset to
 download). Two presets:
 
-| config | params | tokens / sample | batch (micro × accum) | steps | compute / step | rough A100 time |
+| config | params | tokens / sample | batch (micro × accum) | steps | compute / step | A100 estimate |
 |---|---|---|---|---|---|---|
 | `configs/train/pretrain_small.yaml` | 32 M | 1024 (64×64 cells, patch 2) | 256 (128 × 2) | 50 k | 48 TFLOP | 4–9 h |
 | `configs/train/pretrain_base.yaml` | 129 M | 1024 | 256 (64 × 4) | 100 k | 164 TFLOP | 1–2.5 days |
 
 Compute per step is counted exactly (forward + backward including attention, with
 `torch.utils.flop_counter` and the math attention backend); the times assume 25–55 % of the
-A100's 312 TFLOP/s bf16 peak. Read the real speed from `samples_per_s` in `log.jsonl` after a few
-hundred steps.
+A100's 312 TFLOP/s bf16 peak. For other GPUs use the measured projection of
+`scripts/benchmark_gpu.py` rather than scaling by peak figures (the RTX PRO 6000's datasheet, for
+example, quotes only an FP4 peak). During training, `samples_per_s` in `log.jsonl` gives the real
+speed.
 
 Memory: the activations kept for the backward pass measure ≈ 322 MB per 64×64 sample for `small`
 and ≈ 643 MB for `base` (bf16), so a full batch of 256 would need ≈ 82 GB or ≈ 165 GB. The configs
 split it into micro-batches (`batch_size`) with gradient accumulation (`grad_accum`), staying near
-41 GB on an 80 GB card.
+41 GB, which fits 80 GB cards; on a 96 GB card `--probe` (step 2) shows how far `batch_size` can go
+up (with `grad_accum` lowered to keep the effective batch).
 
 Run `pretrain_small` first: if its `eval_bits_per_cell_ema` flattens long before the end, shorten
 the base run (`steps=...`); the learning-rate schedule follows `steps`, so set it before starting.

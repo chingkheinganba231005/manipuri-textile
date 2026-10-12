@@ -26,13 +26,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-train = ["torch>=2.2", "safetensors>=0.4"]
-app = ["torch>=2.2", "safetensors>=0.4", "gradio>=4.44"]
+train = ["torch>=2.4", "safetensors>=0.4"]
+app = ["torch>=2.4", "safetensors>=0.4", "gradio>=4.44"]
 hub = ["huggingface_hub>=0.23", "safetensors>=0.4"]
 figures = ["matplotlib>=3.7"]
-image-baseline = ["torch>=2.2", "safetensors>=0.4", "diffusers>=0.41", "transformers>=5.0", "peft>=0.21"]
+image-baseline = ["torch>=2.4", "safetensors>=0.4", "diffusers>=0.41", "transformers>=5.0", "peft>=0.21"]
 dev = ["pytest>=7.4", "ruff>=0.5"]
-all = ["torch>=2.2", "safetensors>=0.4", "gradio>=4.44", "huggingface_hub>=0.23", "matplotlib>=3.7",
+all = ["torch>=2.4", "safetensors>=0.4", "gradio>=4.44", "huggingface_hub>=0.23", "matplotlib>=3.7",
        "diffusers>=0.41", "transformers>=5.0", "peft>=0.21", "pytest>=7.4", "ruff>=0.5"]
 
 [project.scripts]

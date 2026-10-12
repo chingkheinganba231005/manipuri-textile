@@ -129,7 +129,7 @@ Model sanity check (CPU, 4.1 M parameters, 32×32 crops, batch 32, procedural da
 held-out NLL bound (EMA weights) was 0.294 bits/cell after 500 steps, 0.218 after 1 k and 0.131
 after 4 k. Samples show recognisable stripes, temple rows and plaids, with stray cells and extra
 colours expected from such a small, short run; exact symmetry constraints hold. Real results come
-from the A100 runs (`configs/train/*.yaml`).
+from the GPU runs (`configs/train/*.yaml`).
 
 ## Figures
 
@@ -143,7 +143,7 @@ render. 7. Digitisation examples and failure cases. 8. User-study results.
 
 | weeks | work |
 |---|---|
-| 1–2 | Pretrain small and base models on the A100; ablations on procedural data |
+| 1–2 | Pretrain small and base models on the GPU; ablations on procedural data |
 | 2–6 | Ethics/consent, photography, digitisation and curation of real textiles |
 | 6–8 | Fine-tuning, baselines, metric evaluation (E1–E4, E7) |
 | 8–10 | Weaver study (E5) and physical weaving (E6) |
