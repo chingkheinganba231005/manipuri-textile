@@ -10,6 +10,7 @@ photographed (perspective, blur, uneven light, noise, JPEG).  The digitiser is t
 * **clean**: a noise-free pixel-art rendering of the design, automatic and assisted.
 
 Usage:  python scripts/benchmark_digitise.py --seeds 10 --out runs/bench_digitise.json
+        (``--seed-offset 100`` scores held-out designs and photos)
 """
 
 from __future__ import annotations
@@ -26,10 +27,10 @@ from manitex.digitise.synth import label_accuracy, pixel_accuracy, synthetic_pho
 from manitex.procedural import PROCEDURAL_STYLES, generate
 
 
-def run(seeds: int, height: int, width: int) -> dict:
+def run(seeds: int, height: int, width: int, seed_offset: int = 0) -> dict:
     rows = []
     for style in PROCEDURAL_STYLES:
-        for seed in range(seeds):
+        for seed in range(seed_offset, seed_offset + seeds):
             d = generate(style, height, width, seed=1000 + seed)
             truth = d.canonical().grid
             k_true = len(d.used_colors())
@@ -63,7 +64,8 @@ def run(seeds: int, height: int, width: int) -> dict:
     for style in PROCEDURAL_STYLES:
         rs = [r for r in rows if r["style"] == style]
         summary[style] = {m: float(np.mean([r[m] for r in rs])) for m in metrics}
-    return {"config": {"seeds": seeds, "height": height, "width": width}, "summary": summary, "rows": rows}
+    return {"config": {"seeds": seeds, "seed_offset": seed_offset, "height": height, "width": width},
+            "summary": summary, "rows": rows}
 
 
 def to_markdown(res: dict) -> str:
@@ -78,11 +80,12 @@ def to_markdown(res: dict) -> str:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--seeds", type=int, default=6)
+    ap.add_argument("--seed-offset", type=int, default=0, help="first seed (use unseen seeds for held-out tests)")
     ap.add_argument("--height", type=int, default=40)
     ap.add_argument("--width", type=int, default=48)
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
-    res = run(args.seeds, args.height, args.width)
+    res = run(args.seeds, args.height, args.width, args.seed_offset)
     md = to_markdown(res)
     print(md)
     if args.out:

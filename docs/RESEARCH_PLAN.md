@@ -64,11 +64,11 @@
 |---|---|---|---|
 | E1 | RQ1 | Train on real train split (with/without grammar pretraining); compare with grammar, retrieval of training crops, AR transformer baseline, image-space LDM + digitiser (`scripts/eval_generators.py`) | pattern-JS 2×2/3×3, run-length W1 (rows/cols), colour-count TV, symmetry stats, NLL of held-out designs (bits/cell), diversity, novelty, weaving cost |
 | E2 | RQ2 | Same model: unconstrained / post-hoc projection / orbit pooling (mean, sum) for mirror, repeat, stripes (`scripts/eval_constraints.py`) | constraint satisfaction, NLL of samples under the model, pattern-JS, diversity, expert preference |
-| E3 | RQ3 | Fine-tune with 0/10/25/50/100 % of the real data, with and without pretraining | NLL and pattern-JS vs data fraction |
+| E3 | RQ3 | Fine-tune with 0/10/25/50/100 % of the real data (nested piece-level subsets from `scripts/make_splits.py`), with and without pretraining | NLL and pattern-JS vs data fraction |
 | E4 | RQ4 | Compile all samples | tie-downs / 100 cells, max floats, dobby shafts, pattern-pick fraction; weaver ratings of booklets |
-| E5 | RQ4 | Blind study with 8–15 weavers/designers: real vs procedural vs generated (Likert authenticity, pairwise preference, "would you weave it?") | ratings, preference rates, qualitative comments |
+| E5 | RQ4 | Blind study with 8–15 weavers/designers: real vs procedural vs generated (Likert authenticity, pairwise preference, "would you weave it?"); materials and analysis with `scripts/make_study_set.py` | ratings, preference rates, qualitative comments |
 | E6 | RQ4 | Weave 1–3 generated borders from the booklet on a real loom; photograph and digitise the result | design-vs-woven agreement, time, weaver notes |
-| E7 | RQ5 | `scripts/benchmark_digitise.py` (synthetic) + a real subset with manually corrected ground truth | cell accuracy (assisted), pixel accuracy (automatic), colour ΔE00, exact-grid rate |
+| E7 | RQ5 | `scripts/benchmark_digitise.py` (synthetic) + a real subset with manually corrected ground truth (`scripts/eval_digitise_real.py`) | cell accuracy (assisted), pixel accuracy (automatic), colour ΔE00, exact-grid rate |
 
 **Ablations:** patch size (2 vs 4), loss weighting (mean vs ELBO), schedule (cosine vs linear),
 condition dropout, domain tag on/off, flips, model size (tiny → large); at sampling time, unmasking

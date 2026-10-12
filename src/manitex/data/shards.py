@@ -121,30 +121,76 @@ def build_procedural_shards(out_dir: str | Path, n: int, height: tuple[int, int]
     return paths
 
 
-def import_designs(src: str | Path, out: str | Path, style: str | None = None, domain: str = "real",
-                   max_colors: int = 16) -> Path:
-    """Import a folder of design files (``.png`` / ``.json`` / ``.npz``) into one shard.
+#: Files that ``manitex digitise`` writes next to a design but that are not designs.
+NON_DESIGN_SUFFIXES = ("_preview.png", "_grid.png")
+#: Metadata files that may sit in a design folder.
+NON_DESIGN_NAMES = ("meta.json", "splits.json")
 
-    The style is taken from ``style`` if given, else from each design's metadata, else from
-    the name of the file's parent folder.  Designs with more than ``max_colors`` colours are
-    reduced by merging the least frequent colours into their nearest frequent colour.
+
+def find_design_files(src: str | Path) -> list[Path]:
+    """Design files (``.png`` / ``.json`` / ``.npz``) under ``src``.
+
+    The preview and grid-overlay images written by ``manitex digitise`` and ``meta.json`` files
+    are skipped, and a design saved in several formats (same path without the extension) is
+    counted once, preferring the ``.png``: that is the file curated in an image editor.
     """
+    pref = {".png": 0, ".json": 1, ".npz": 2}
+    best: dict[Path, Path] = {}
+    for f in sorted(Path(src).rglob("*")):
+        name = f.name.lower()
+        if not f.is_file() or f.suffix.lower() not in pref or name.endswith(NON_DESIGN_SUFFIXES) or name in NON_DESIGN_NAMES:
+            continue
+        key = f.with_suffix("")
+        if key not in best or pref[f.suffix.lower()] < pref[best[key].suffix.lower()]:
+            best[key] = f
+    return sorted(best.values())
+
+
+def limit_colors(d: Design, max_colors: int = 16) -> Design:
+    """Canonical design with at most ``max_colors`` colours: the least frequent colours are merged
+    into their nearest (CIEDE2000) frequent colour."""
     from manitex.color import delta_e2000, srgb_to_lab
 
+    d = d.canonical()
+    if d.n_colors <= max_colors:
+        return d
+    lab = srgb_to_lab(d.palette.astype(float))
+    keep = lab[:max_colors]
+    lut = np.arange(d.n_colors)
+    for j in range(max_colors, d.n_colors):
+        lut[j] = int(np.argmin(delta_e2000(keep, np.broadcast_to(lab[j], keep.shape))))
+    return Design(lut[d.grid], d.palette[:max_colors], d.meta).canonical()
+
+
+def load_design_folder(src: str | Path, max_colors: int = 16) -> list[Design]:
+    """Load every design under ``src`` (see :func:`find_design_files`) with ``source_file`` and
+    ``piece_id`` (the first folder below ``src``, else the file stem) in its metadata."""
     src = Path(src)
-    files = sorted(f for f in src.rglob("*") if f.suffix.lower() in (".png", ".json", ".npz"))
-    designs, styles = [], []
-    for f in files:
-        d = Design.load(f).canonical()
-        if d.n_colors > max_colors:
-            lab = srgb_to_lab(d.palette.astype(float))
-            keep = lab[:max_colors]
-            lut = np.arange(d.n_colors)
-            for j in range(max_colors, d.n_colors):
-                lut[j] = int(np.argmin(delta_e2000(keep, np.broadcast_to(lab[j], keep.shape))))
-            d = Design(lut[d.grid], d.palette[:max_colors], d.meta)
-        designs.append(d)
-        styles.append(style or str(d.meta.get("style") or f.parent.name))
+    out = []
+    for f in find_design_files(src):
+        try:
+            d = Design.load(f)
+        except Exception as e:  # e.g. a photo or other image in the design folder
+            raise ValueError(f"cannot read {f} as a design ({e}); remove it from {src}") from e
+        d = limit_colors(d, max_colors)
+        rel = f.relative_to(src)
+        d.meta.setdefault("source_file", rel.as_posix())
+        d.meta.setdefault("piece_id", rel.parts[0] if len(rel.parts) > 1 else f.stem)
+        out.append(d)
+    return out
+
+
+def import_designs(src: str | Path, out: str | Path, style: str | None = None, domain: str = "real",
+                   max_colors: int = 16) -> Path:
+    """Import a folder of design files into one shard (see :func:`load_design_folder`).
+
+    The style is taken from ``style`` if given, else from each design's metadata (``manitex
+    digitise --style``), else from the name of the file's parent folder.  Designs with more than
+    ``max_colors`` colours are reduced by merging the least frequent colours into their nearest
+    frequent colour.
+    """
+    designs = load_design_folder(src, max_colors)
     if not designs:
         raise ValueError(f"no design files found under {src}")
+    styles = [style or str(d.meta.get("style") or (Path(src) / d.meta["source_file"]).parent.name) for d in designs]
     return write_shard(out, designs, styles, [domain] * len(designs))

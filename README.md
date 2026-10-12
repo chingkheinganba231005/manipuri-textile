@@ -110,7 +110,8 @@ src/manitex/        design, color, constraints, procedural/, weave/, render/, di
                     models/, data/, train.py, generate.py, metrics.py, cli.py, app.py
 configs/            training configs (A100) and ablation notes
 scripts/            experiments (eval_generators.py: E1, eval_constraints.py: E2, image_baseline.py,
-                    ablate_sampler.py, benchmark_digitise.py: E7), make_figures.py, build_space.py
+                    ablate_sampler.py, make_splits.py: E3, make_study_set.py: E5, benchmark_digitise.py
+                    and eval_digitise_real.py: E7), make_figures.py, build_space.py
 docs/               TRAINING, WEAVING, DATA_COLLECTION, RESEARCH_PLAN, ETHICS
 paper/              LaTeX skeleton for the journal paper (The Visual Computer)
 space/              Hugging Face Space entry point

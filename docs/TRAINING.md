@@ -135,6 +135,16 @@ manitex train --config configs/train/finetune_real.yaml init_from=runs/baseline_
     out_dir=runs/finetune_real_ar batch_size=16 grad_accum=8
 ```
 
+For experiment E3, fine-tune on the nested subsets written by `scripts/make_splits.py`, e.g.
+
+```bash
+manitex train --config configs/train/finetune_real.yaml out_dir=runs/e3_25 \
+    "data=[{type: shards, paths: [data/real/train_25.npz], val_paths: [data/real/val.npz], domain: real, weight: 0.8}, {type: procedural, weight: 0.2}]"
+```
+
+and add `init_from=null model=base` for the curve without pretraining (same architecture, random
+initialisation).
+
 The fine-tuning mix keeps 20 % procedural data to avoid forgetting the structural prior. Real
 designs are tagged with the `real` domain, so at generation time `--domain real` asks for
 real-textile statistics and `--domain synthetic` for grammar-like ones. Checkpoints record the

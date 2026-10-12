@@ -72,7 +72,9 @@ manitex digitise data/raw/MP-0001/border_1.jpg --corners x1,y1,x2,y2,x3,y3,x4,y4
 ```
 
 1. Check `*_grid.png`: magenta lines should follow the motif steps. If not, count the cells across
-   (and down) a motif and pass `--cells-x/--cells-y`.
+   (and down) a motif and pass `--cells-x/--cells-y`. (The preview and grid images can stay in the
+   folder: the import skips them, and uses the curated `*_design.png` rather than the `.json`
+   written next to it.)
 2. Check `*_preview.png` against the photo; fix small errors in any pixel editor (the `.png` is an
    indexed image, so the palette is preserved) or re-run with `--colors N`.
 3. Keep only designs you would sign off as faithful. Record digitisation problems in
@@ -82,13 +84,27 @@ manitex digitise data/raw/MP-0001/border_1.jpg --corners x1,y1,x2,y2,x3,y3,x4,y4
 ## 5. Splits and shards
 
 Split by **piece** (never put two crops of the same textile in different splits), stratified by
-category: e.g. 80 / 10 / 10 % train / validation / test.
+category: e.g. 80 / 10 / 10 % train / validation / test. `scripts/make_splits.py` does this from
+`data/designs/<piece_id>/` (categories from `data/raw/<piece_id>/meta.json`) and also writes nested
+training subsets for the data-efficiency experiment (E3):
 
 ```bash
-manitex data import data/designs/train --out data/real/train.npz
-manitex data import data/designs/val   --out data/real/val.npz
-manitex data import data/designs/test  --out data/real/test.npz
+python scripts/make_splits.py data/designs --raw data/raw --out data/real \
+    --val 0.1 --test 0.1 --fractions 0.1,0.25,0.5
+# -> data/real/{train,val,test}.npz, train_10.npz, train_25.npz, train_50.npz, splits.json
 ```
+
+(`manitex data import <folder> --out <shard>` imports any folder of designs into one shard if you
+prefer to split by hand.)
+
+### Digitisation ground truth (experiment E7)
+
+For a few dozen photos, keep the digitiser's assisted output corrected by hand as ground truth:
+put `<name>.jpg`, `<name>.json` (`{"corners": [...8 numbers...], "cells_x": .., "cells_y": ..}`) and
+`<name>_truth.png` in one folder and run
+`python scripts/eval_digitise_real.py <folder> --out results/e7_real`. Note: the same yarn colour can
+look different in plain-weave stripes (mixed optically with the warp) and in supplementary-weft
+floats, so the digitiser may return it as two colours; merge such pairs when curating.
 
 ## 6. Data card (fill in for the paper)
 
