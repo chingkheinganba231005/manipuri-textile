@@ -77,7 +77,7 @@ def test_generator_procedural_fallback():
     assert tuple(custom.palette[0]) == (255, 255, 255)
 
 
-def test_generator_with_model(tmp_path):
+def test_generator_with_model(tmp_path, monkeypatch):
     torch = pytest.importorskip("torch")
     from manitex.generate import GenerationOptions, TextileGenerator
     from manitex.models import GridTransformer, StyleVocab, make_config
@@ -110,6 +110,27 @@ def test_generator_with_model(tmp_path):
     inp = gen.inpaint(ds[0], mask, n=1, seed=2, options=opts)[0]
     keep = ~mask
     assert (inp.to_rgb()[keep] == ds[0].to_rgb()[keep]).all()
+    # domain='auto' conditions on 'real' only when the model was trained on real data
+    import manitex.models.sampler as sampler_mod
+
+    seen_domains = []
+    real_sample = sampler_mod.sample
+
+    def spy(*args, **kwargs):
+        seen_domains.append(kwargs.get("domain"))
+        return real_sample(*args, **kwargs)
+
+    monkeypatch.setattr(sampler_mod, "sample", spy)
+    assert info["domains_seen"] == []
+    gen.generate("moirang_phee", n=1, height=8, width=8, seed=0, options=opts)
+    ck2 = save_checkpoint(tmp_path / "m2.pt", model=model, ema=model, optimizer=None, step=8, model_cfg=cfg,
+                          train_cfg={"crop": 16}, vocab=vocab, extra={"domains_seen": ["real", "synthetic"]})
+    gen2 = TextileGenerator.from_pretrained(str(export_slim(ck2, tmp_path / "slim2")), device="cpu")
+    assert gen2.info["domains_seen"] == ["real", "synthetic"]
+    gen2.generate("moirang_phee", n=1, height=8, width=8, seed=0, options=opts)
+    gen2.generate("moirang_phee", n=1, height=8, width=8, seed=0,
+                  options=GenerationOptions(steps=3, domain="synthetic"))
+    assert seen_domains == [None, 1, 0]
 
 
 def test_cli_procedural_compile_digitise(tmp_path):

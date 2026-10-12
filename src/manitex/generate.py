@@ -41,7 +41,7 @@ class GenerationOptions:
     temperature: float = 1.0
     cfg: float = 1.0
     strategy: str = "confidence"
-    domain: str = "real"  # condition on real-textile statistics when the model has seen real data
+    domain: str = "auto"  # 'real' | 'synthetic' | 'none' | 'auto' (= 'real' if the model saw real data)
 
 
 def assign_palette(grid: np.ndarray, style: str, rng: np.random.Generator,
@@ -187,7 +187,10 @@ class TextileGenerator:
         sid = vocab.id(style)
         gen = torch.Generator().manual_seed(int(seed)) if seed is not None else None
         scfg = SamplerConfig(steps=opt.steps, temperature=opt.temperature, cfg=opt.cfg, strategy=opt.strategy)
-        dom = DOMAINS.get(opt.domain, None)
+        domain = opt.domain
+        if domain == "auto":
+            domain = "real" if "real" in self.info.get("domains_seen", []) else "none"
+        dom = DOMAINS.get(domain, None)  # 'none' -> null condition
         window = 2 * self.train_crop
         if height <= window and width <= window:
             out = sample(self.model, n, height, width, style=sid, ncolors=n_colors, domain=dom, symmetry=symmetry,

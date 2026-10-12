@@ -238,7 +238,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--steps", type=int, default=24)
     sp.add_argument("--temperature", type=float, default=1.0)
     sp.add_argument("--cfg", type=float, default=1.0)
-    sp.add_argument("--domain", default="real", choices=["real", "synthetic"])
+    sp.add_argument("--domain", default="auto", choices=["auto", "real", "synthetic", "none"])
     sp.add_argument("--seed", type=int, default=0)
     sp.add_argument("--cell", type=int, default=8)
     sp.add_argument("--render", action="store_true")

@@ -83,7 +83,9 @@ manitex train --config configs/train/finetune_real.yaml init_from=runs/pretrain_
 
 The fine-tuning mix keeps 20 % procedural data to avoid forgetting the structural prior. Real
 designs are tagged with the `real` domain, so at generation time `--domain real` asks for
-real-textile statistics.
+real-textile statistics and `--domain synthetic` for grammar-like ones. Checkpoints record the
+domains they were trained on, and the default `--domain auto` picks `real` when the model has seen
+real data and the unconditional (null) domain otherwise.
 
 ## 6. Evaluation
 

@@ -2,7 +2,7 @@
 
 Single GPU::
 
-    python -m manitex.train --config configs/train/pretrain_synthetic.yaml
+    python -m manitex.train --config configs/train/pretrain_small.yaml
 
 Multi-GPU (DDP)::
 
@@ -174,6 +174,21 @@ def build_stream(cfg: TrainConfig, vocab: StyleVocab, split: str = "train"):
     return sources[0] if len(sources) == 1 else MixedStream(sources, weights, seed=cfg.seed)
 
 
+def data_domains(cfg: TrainConfig) -> list[str]:
+    """Domain tags present in the training data (saved in checkpoints so that generation
+    conditions only on a domain the model has actually seen)."""
+    seen: set[str] = set()
+    for src in cfg.data:
+        if src.get("type", "procedural") == "procedural":
+            seen.add("synthetic")
+        elif src.get("domain"):
+            seen.add(str(src["domain"]))
+        else:
+            for sh in read_shards(src["paths"] if isinstance(src["paths"], list) else [src["paths"]]):
+                seen.update(str(d) for d in np.unique(sh.domains))
+    return sorted({d if d in DOMAINS else "real" for d in seen})  # unknown tags train as 'real'
+
+
 def palette_bank_from_config(cfg: TrainConfig) -> dict[str, list[list[str]]]:
     """Canonical palettes of the real designs in the training shards, grouped by style."""
     from manitex.color import rgb_to_hex
@@ -295,9 +310,14 @@ def train(cfg: TrainConfig) -> Path:
     log_f = open(out / "log.jsonl", "a") if rank == 0 else None
     t0, seen = time.time(), 0
 
+    domains_seen = data_domains(cfg)
+    if init_state is not None:
+        domains_seen = sorted(set(domains_seen) | set((init_state.get("extra") or {}).get("domains_seen", [])))
+
     def _save(path: Path) -> None:
         save_checkpoint(path, model=model, ema=ema, optimizer=opt, step=step, model_cfg=model_cfg,
-                        train_cfg=asdict(cfg), vocab=vocab, palette_bank=palette_bank)
+                        train_cfg=asdict(cfg), vocab=vocab, palette_bank=palette_bank,
+                        extra={"domains_seen": domains_seen})
 
     while step < cfg.steps:
         lr = lr_at(step, cfg)

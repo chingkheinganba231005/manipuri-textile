@@ -72,6 +72,7 @@ def export_slim(ckpt: str | Path, out_dir: str | Path, use_ema: bool = True, dty
         "weights": "ema" if (use_ema and state.get("ema")) else "model",
         "dtype": dtype,
         "train_crop": int((state.get("train_config") or {}).get("crop", 64)),
+        "domains_seen": (state.get("extra") or {}).get("domains_seen", []),
     }
     (out / "config.json").write_text(json.dumps(meta, indent=1))
     return out
@@ -107,5 +108,6 @@ def load_model(path: str | Path, device: str | torch.device = "cpu", use_ema: bo
         "step": meta.get("step", 0),
         "model_config": cfg,
         "train_crop": int(meta.get("train_crop") or (meta.get("train_config") or {}).get("crop", 64)),
+        "domains_seen": list(meta.get("domains_seen") or (meta.get("extra") or {}).get("domains_seen", [])),
     }
     return model, info

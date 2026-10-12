@@ -171,6 +171,15 @@ def test_streams_and_shards(tmp_path):
     mix = MixedStream([ps, ss], [0.5, 0.5])
     it2 = iter(mix)
     assert next(it2)["grid"].shape == (16, 16)
+    # domains recorded in checkpoints come from the data actually used
+    from manitex.train import TrainConfig, data_domains
+
+    assert data_domains(TrainConfig()) == ["synthetic"]
+    assert data_domains(TrainConfig(data=[{"type": "procedural"}, {"type": "shards", "paths": [str(path)]}])) == [
+        "real", "synthetic"]
+    syn = write_shard(tmp_path / "syn.npz", designs, domains=["synthetic"] * 4)
+    assert data_domains(TrainConfig(data=[{"type": "shards", "paths": str(syn)}])) == ["synthetic"]
+    assert data_domains(TrainConfig(data=[{"type": "shards", "paths": str(syn), "domain": "real"}])) == ["real"]
 
 
 def test_prepare_crop_canonical_and_colour_cap():
