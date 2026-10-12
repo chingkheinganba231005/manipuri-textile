@@ -216,3 +216,40 @@ def test_app_studio_actions():
     ov, pv, info, fl, state = st.digitise(d.to_rgb(cell=8), [], d.width, d.height, 0, True, True, False, "motif_tile")
     assert Design.from_dict(state).shape == (20, 24)
     assert json.loads(json.dumps(state))["meta"]["style"] == "motif_tile"
+
+
+def test_app_zero_gpu(tmp_path, monkeypatch):
+    pytest.importorskip("gradio")
+    import sys
+    import types
+
+    from manitex import app
+    from manitex.models import StyleVocab, build_model, make_config
+    from manitex.models.checkpoint import save_checkpoint
+
+    assert app.zero_gpu() is None  # not on ZeroGPU hardware
+    registered = []
+
+    def gpu(fn, duration=None):
+        registered.append(duration)
+        return fn
+
+    monkeypatch.setenv("SPACES_ZERO_GPU", "true")
+    monkeypatch.setitem(sys.modules, "spaces", types.SimpleNamespace(GPU=gpu))
+    app.build_app(None)  # procedural generator: a GPU function is registered all the same
+    m = build_model(make_config("tiny"))
+    ck = save_checkpoint(tmp_path / "m.pt", model=m, ema=m, optimizer=None, step=1, model_cfg=m.cfg,
+                         train_cfg={"crop": 16}, vocab=StyleVocab.default(m.cfg.n_styles))
+    app.build_app(str(ck))
+    assert len(registered) == 2
+    st = app.Studio(str(ck))
+
+    def args(n=4, size=64, steps=64, guidance=1.0):
+        return ("check", n, size, size, 0, False, False, 0, "none", "auto", "", 0, steps, 1.0, guidance)
+
+    # tiny model, 4 designs of 64x64 cells, 64 steps with guidance: 512 passes over 1024 tokens
+    flop = 4 * (24 * 1024 * 128**2 + 4 * 1024**2 * 128)
+    assert st.gpu_seconds(*args()) == pytest.approx(15 + 512 * flop / 10e12)
+    assert st.gpu_seconds(*args(guidance=0.0)) < st.gpu_seconds(*args()) < st.gpu_seconds(*args(size=128))
+    huge = args(n=10**4)
+    assert st.gpu_seconds(*huge) > app.ZERO_GPU_MAX_SECONDS and registered[1](*huge) == app.ZERO_GPU_MAX_SECONDS

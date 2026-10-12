@@ -20,6 +20,7 @@ instructions, simulated cloth) and **digitise** photos of textiles into clean de
 Set the Space variable `MANITEX_CHECKPOINT` to a trained model (e.g. `hf://<user>/<model-repo>`) or
 bundle an exported model in `model/`; otherwise the procedural generator is used. Neural sampling
 is slow on CPU hardware (about 30 s per 64×64 design with the small model), so the app starts with
-lighter settings there; GPU hardware makes it interactive.
+lighter settings there; GPU hardware makes it interactive. On ZeroGPU hardware the app requests a
+GPU only while it samples (build the Space with `scripts/build_space.py --hardware zerogpu`).
 
 Source code and documentation: see the project repository.

@@ -123,17 +123,26 @@ tests/              pytest suite
 
 ```bash
 manitex export runs/pretrain_small/final.pt --out exports/manitex-small
-python scripts/build_space.py --out space_build --model exports/manitex-small
+python scripts/build_space.py --out space_build --model exports/manitex-small --hardware zerogpu
 hf auth login                                                  # huggingface_hub CLI
 hf repos create <user>/manitex --type space --sdk gradio
 hf upload <user>/manitex space_build . --type space
 ```
 
-The procedural generator, weave compiler and digitiser run comfortably on the free CPU tier.
-Neural sampling is heavier: with the `small` model (32 M parameters) one 64×64 design takes
-≈ 30 s at 32 steps with guidance on two CPU threads, so on CPU the app starts with lighter
-settings (two 48×48 designs, 16 steps: ≈ 23 s). For a responsive public demo, give the Space GPU
-hardware (a paid upgrade in the Space settings).
+Then select the Space hardware matching `--hardware` in the Space settings (it decides which
+PyTorch build the Space installs). Hugging Face requires a paid plan to create Gradio Spaces,
+except on ZeroGPU, where a free personal account in good standing (verified email, older than
+30 days) can host two.
+
+* `zerogpu` (**ZeroGPU**, free): the app is lent half of an NVIDIA RTX PRO 6000 Blackwell (48 GB,
+  the GPU of Google Cloud G4 machines) only while it samples, so sampling is fast. Visitors get a
+  few GPU minutes a day (2 without a Hugging Face account, 5 with a free one); the app estimates
+  the GPU time of each request and refuses those above 90 s.
+* `cpu` (CPU Basic): the procedural generator, weave compiler and digitiser run comfortably, but
+  neural sampling is slow: with the `small` model (32 M parameters) one 64×64 design takes ≈ 30 s
+  at 32 steps with guidance on two CPU threads, so the app starts with lighter settings there
+  (two 48×48 designs, 16 steps: ≈ 23 s).
+* `gpu` (T4, L4, L40S, A10G or A100): paid hardware, billed per minute while the Space runs.
 
 ## Research
 

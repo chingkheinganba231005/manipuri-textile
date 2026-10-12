@@ -1,4 +1,8 @@
-"""Hugging Face Spaces entry point for the manitex demo."""
+"""Hugging Face Spaces entry point for the manitex demo.
+
+On ZeroGPU hardware, ``manitex.app`` imports ``spaces`` before loading the model and samples inside
+a ``spaces.GPU`` function (see ``manitex.app.zero_gpu``).
+"""
 
 import os
 from pathlib import Path

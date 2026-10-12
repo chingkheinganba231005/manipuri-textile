@@ -87,6 +87,23 @@ def _palette_md(d: Design) -> str:
     return "<br>".join(rows)
 
 
+ZERO_GPU_MAX_SECONDS = 90  # longest GPU task to request on ZeroGPU (visitors get a few GPU minutes a day)
+
+
+def zero_gpu():
+    """``spaces.GPU`` when the app runs on Hugging Face ZeroGPU hardware, otherwise None.
+
+    ZeroGPU attaches a GPU only while a function decorated with ``spaces.GPU`` runs (in a forked
+    process), refuses to start a Space without such a function, and needs ``spaces`` imported
+    before CUDA is initialised, so call this before loading the model.
+    """
+    if os.environ.get("SPACES_ZERO_GPU", "").lower() not in ("1", "t", "true"):
+        return None
+    import spaces
+
+    return spaces.GPU
+
+
 def parse_palette(text: str | None, preset: str | None) -> Any:
     if text and text.strip():
         cols = [c.strip() for c in text.replace(";", ",").split(",") if c.strip()]
@@ -136,6 +153,25 @@ class Studio:
         for d in designs:
             d.meta.setdefault("style", style)
         return [_preview(d, 256) for d in designs], [design_to_state(d) for d in designs]
+
+    def gpu_seconds(self, style: str, n: int, rows: int, cols: int, n_colors: int, mirror_x: bool, mirror_y: bool,
+                    period_x: int, stripes: str, preset: str, palette_text: str, seed: int, steps: int,
+                    temperature: float, guidance: float) -> float:
+        """Generous estimate of the GPU time of :meth:`generate` with the same arguments: the model's
+        forward FLOPs (linear layers and attention) for every sampling pass at an assumed 10 TFLOP/s
+        (sampling runs in fp32; a data-centre GPU is several times faster), plus 15 s for attaching
+        a GPU and starting up."""
+        if not self.gen.has_model:
+            return 15.0
+        from manitex.models.factory import is_autoregressive
+
+        if is_autoregressive(self.gen.model):  # one cached step per cell: latency, not FLOPs, dominates
+            return 15.0 + 0.01 * int(rows) * int(cols)
+        c = self.gen.model.cfg
+        t = max(1, int(rows) // c.patch) * max(1, int(cols) // c.patch)  # tokens
+        flop = c.depth * ((8 + 4 * c.mlp_ratio) * t * c.d_model**2 + 4 * t * t * c.d_model)
+        passes = int(n) * int(steps) * (2 if float(guidance) > 0 else 1)  # guidance adds an unconditional pass
+        return 15.0 + passes * flop / 10e12
 
     def weave(self, state: dict | None, technique: str, ground_weave: str, ground_stripes: str, supplementary: str,
               ends_per_cell: int, picks_per_cell: int, max_float: int, epc: float, ppc: float):
@@ -233,7 +269,13 @@ def build_app(checkpoint: str | None = None):
     from manitex.generate import GenerationOptions
     from manitex.weave import STRUCTURE_NAMES
 
+    gpu = zero_gpu()  # before the model is loaded
     studio = Studio(checkpoint)
+    generate, on_zero_gpu = studio.generate, False
+    if gpu is not None:  # registered even without a model (ZeroGPU will not start otherwise) ...
+        gpu_generate = gpu(studio.generate, duration=lambda *a: min(ZERO_GPU_MAX_SECONDS, studio.gpu_seconds(*a)))
+        if studio.gen.has_model:  # ... but the procedural generator stays on the CPU
+            generate, on_zero_gpu = gpu_generate, True
     styles = studio.gen.styles
     style_choices = [(STYLE_LABELS.get(s, s.replace("_", " ")), s) for s in styles]
     presets = ["auto", *PALETTE_PRESETS]
@@ -347,7 +389,10 @@ def build_app(checkpoint: str | None = None):
         style.change(lambda s: STYLE_DESCRIPTIONS.get(s, ""), style, style_info)
 
         def on_generate(*args):
-            previews, states = studio.generate(*args)
+            if on_zero_gpu and (secs := studio.gpu_seconds(*args)) > ZERO_GPU_MAX_SECONDS:
+                raise gr.Error(f"This request would need about {secs:.0f} s of GPU time (the limit here is "
+                               f"{ZERO_GPU_MAX_SECONDS} s): ask for fewer designs, fewer steps or a smaller size.")
+            previews, states = generate(*args)
             first = states[0] if states else None
             sel = _select(first)
             return (previews, states, first, *sel)

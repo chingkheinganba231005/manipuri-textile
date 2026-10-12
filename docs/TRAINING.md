@@ -207,12 +207,14 @@ Load anywhere with `TextileGenerator.from_pretrained("hf://<user>/manitex-v1")`.
 
 ```bash
 manitex app --checkpoint exports/manitex-v1                               # local
-python scripts/build_space.py --out space_build --model exports/manitex-v1  # Hugging Face Space
+python scripts/build_space.py --out space_build --model exports/manitex-v1 --hardware zerogpu
 hf repos create <user>/manitex --type space --sdk gradio
-hf upload <user>/manitex space_build . --type space
+hf upload <user>/manitex space_build . --type space    # then select ZeroGPU in the Space settings
 ```
 
-On the Space you can instead set the variable `MANITEX_CHECKPOINT=hf://<user>/manitex-v1` (and
-build without `--model`). Sampling speed: a 64×64 design with the `small` model takes ≈ 30 s on
-two CPU threads (32 steps, guidance); the app detects a CPU-only machine and starts with lighter
-settings. Use GPU hardware for a responsive public demo.
+`--hardware` must match the Space hardware: `zerogpu` (free for two Spaces per personal account;
+the app borrows half of an RTX PRO 6000 Blackwell while it samples), `cpu` or `gpu` (paid T4 to
+A100); see the README. On the Space you can instead set the variable
+`MANITEX_CHECKPOINT=hf://<user>/manitex-v1` (and build without `--model`). Sampling speed: a 64×64
+design with the `small` model takes ≈ 30 s on two CPU threads (32 steps, guidance); the app
+detects a CPU-only machine and starts with lighter settings.

@@ -108,3 +108,13 @@ def test_gpu_benchmark_script_runs_on_cpu(tmp_path):
     rep = json.loads((tmp_path / "b.json").read_text())
     assert rep["benchmark"]["grad_accum"] == 2 and rep["benchmark"]["sec_per_optimizer_step"] > 0
     assert "per step" in out
+
+
+def test_space_builds(tmp_path):
+    for hw in ("cpu", "zerogpu", "gpu"):
+        run("scripts/build_space.py", "--out", tmp_path / hw, "--hardware", hw)
+        req = (tmp_path / hw / "requirements.txt").read_text().splitlines()
+        assert len([r for r in req if r.startswith("torch")]) == 1 and "numpy>=1.24" in req
+        assert any("whl/cpu" in r for r in req) == (hw == "cpu") and (tmp_path / hw / "manitex" / "app.py").exists()
+    assert "spaces" in (tmp_path / "zerogpu" / "requirements.txt").read_text().split()
+    assert "whl/cu128" in (tmp_path / "gpu" / "requirements.txt").read_text()
