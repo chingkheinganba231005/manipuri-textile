@@ -77,6 +77,20 @@ def test_generator_procedural_fallback():
     assert tuple(custom.palette[0]) == (255, 255, 255)
 
 
+def test_propagate_orbits():
+    from manitex.constraints import make_orbits
+    from manitex.generate import propagate_orbits
+
+    orb = make_orbits(3, 4, Symmetry(mirror_x=True))
+    g = -np.ones((2, 3, 4), dtype=np.int64)
+    g[0, 0, 0] = 2  # mirrored to (0, 3)
+    g[0, 1, 1], g[0, 1, 2] = 1, 1
+    g[1, 2, 0], g[1, 2, 3], g[1, 2, 1] = 0, 0, 3  # (2,1) has no known partner yet -> (2,2) = 3
+    out = propagate_orbits(g, orb)
+    assert out[0, 0, 3] == 2 and out[0, 1, 1] == out[0, 1, 2] == 1 and (out[0, 2] == -1).all()
+    assert out[1, 2].tolist() == [0, 3, 3, 0] and (out[1, :2] == -1).all()
+
+
 def test_generator_with_model(tmp_path, monkeypatch):
     torch = pytest.importorskip("torch")
     from manitex.generate import GenerationOptions, TextileGenerator
@@ -105,6 +119,12 @@ def test_generator_with_model(tmp_path, monkeypatch):
     # palette bank used for colouring (3 colours, frequency-rank transfer)
     big = gen.generate("moirang_phee", n=1, height=40, width=40, seed=1, options=opts)[0]  # tiled path (> 2 x crop)
     assert big.shape == (40, 40)
+    # constraints stay exact on the tiled path (orbits span several tiles)
+    for sym, check in ((Symmetry(mirror_x=True, period_y=10),
+                        lambda g: (g == g[:, ::-1]).all() and (g[:10] == g[10:20]).all() and (g[:10] == g[30:40]).all()),
+                       (Symmetry(stripes="rows"), lambda g: all(len(np.unique(r)) == 1 for r in g))):
+        for d in gen.generate("moirang_phee", n=2, height=40, width=56, symmetry=sym, seed=3, options=opts):
+            assert d.shape == (40, 56) and check(d.grid)
     mask = np.zeros((16, 16), bool)
     mask[4:8, 4:8] = True
     inp = gen.inpaint(ds[0], mask, n=1, seed=2, options=opts)[0]

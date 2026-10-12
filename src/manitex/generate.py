@@ -45,6 +45,26 @@ class GenerationOptions:
     domain: str = "auto"  # 'real' | 'synthetic' | 'none' | 'auto' (= 'real' if the model saw real data)
 
 
+def propagate_orbits(grids: np.ndarray, orbits: np.ndarray) -> np.ndarray:
+    """Give every cell of an orbit the (majority) colour of the orbit's known cells (>= 0).
+
+    ``grids``: (n, H, W) colour slots with -1 for unknown cells; ``orbits``: (H, W) orbit ids.
+    Orbits without known cells stay unknown.
+    """
+    ids = orbits.reshape(-1)
+    out = grids.copy()
+    for b in range(grids.shape[0]):
+        g = grids[b].reshape(-1)
+        k = g >= 0
+        if not k.any():
+            continue
+        votes = np.zeros((int(ids.max()) + 1, int(g.max()) + 1), dtype=np.int64)
+        np.add.at(votes, (ids[k], g[k]), 1)
+        val = np.where(votes.sum(1) > 0, votes.argmax(1), -1)[ids]
+        out[b] = np.where(val >= 0, val, g).reshape(grids.shape[1:])
+    return out
+
+
 def assign_palette(grid: np.ndarray, style: str, rng: np.random.Generator,
                    palette: str | Sequence | np.ndarray | None = None,
                    palette_bank: dict[str, list[list[str]]] | None = None) -> np.ndarray:
@@ -198,12 +218,17 @@ class TextileGenerator:
             out = sample(self.model, n, height, width, style=sid, ncolors=n_colors, domain=dom, symmetry=symmetry,
                          known=known, config=scfg, generator=gen, device=self.device)
             return out.numpy()
-        # tiled outpainting for large canvases
+        # tiled outpainting for large canvases.  Orbits are pooled inside each tile and every
+        # sampled colour is written to the orbit's cells in the rest of the canvas, where later
+        # tiles see it as known: the constraints still hold exactly.
         tile = self.train_crop
         overlap = tile // 2
         canvas = np.full((n, height, width), -1, dtype=np.int64)
         if known is not None:
             canvas[:] = np.asarray(known)[None]
+        orb = make_orbits(height, width, symmetry) if symmetry is not None and symmetry.any() else None
+        if orb is not None:
+            canvas = propagate_orbits(canvas, orb)
         ys = list(range(0, max(1, height - tile), tile - overlap)) + [max(0, height - tile)]
         xs = list(range(0, max(1, width - tile), tile - overlap)) + [max(0, width - tile)]
         for y0 in sorted(set(ys)):
@@ -212,10 +237,13 @@ class TextileGenerator:
                 kn = canvas[:, y0 : y0 + h, x0 : x0 + w]
                 if (kn >= 0).all():
                     continue
-                out = sample(self.model, n, h, w, style=sid, ncolors=n_colors, domain=dom, known=kn,
+                local = None
+                if orb is not None:  # global orbits restricted to the tile, as tile-local ids
+                    _, first, inv = np.unique(orb[y0 : y0 + h, x0 : x0 + w], return_index=True, return_inverse=True)
+                    local = first[inv.reshape(-1)].reshape(h, w)
+                out = sample(self.model, n, h, w, style=sid, ncolors=n_colors, domain=dom, known=kn, orbits=local,
                              config=scfg, generator=gen, device=self.device).numpy()
                 canvas[:, y0 : y0 + h, x0 : x0 + w] = out
-        if symmetry is not None and symmetry.any():
-            orb = make_orbits(height, width, symmetry)
-            canvas = np.stack([project(g, orb) for g in canvas])
+                if orb is not None:
+                    canvas = propagate_orbits(canvas, orb)
         return canvas
