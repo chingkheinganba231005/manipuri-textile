@@ -1,0 +1,26 @@
+# Fine-tune a pretrained model on real, digitised Manipuri textiles.
+# Build the shards first:  manitex data import data/real_designs --out data/real/train.npz
+# Keep some procedural data in the mix so the structural prior is not forgotten.
+out_dir: runs/finetune_real
+init_from: runs/pretrain_base/final.pt
+crop: 64
+batch_size: 128
+steps: 20000
+lr: 1.0e-4
+warmup: 500
+ema_decay: 0.999
+precision: bf16
+compile: true
+num_workers: 8
+eval_every: 1000
+eval_size: 256
+sample_every: 2000
+save_every: 2000
+data:
+  - type: shards
+    weight: 0.8
+    paths: [data/real/train.npz]
+    val_paths: [data/real/val.npz]
+    domain: real
+  - type: procedural
+    weight: 0.2

@@ -229,10 +229,12 @@ def to_markdown(design: Design, draft: WeaveDraft, sett: Sett | None = None, tit
             out.append(f"... {len(groups) - max_groups} more row groups (see the HTML booklet or WIF file)")
             break
         r0, r1 = g["rows"]
-        label = f"Row {r0}" if r0 == r1 else f"Rows {r0}-{r1} (repeat each row {r1 - r0 + 1} times)"
-        out.append(f"**{label}** - picks {g['picks'][0]}-{g['picks'][1]}")
+        label = f"**Row {r0}**" if r0 == r1 else f"**Rows {r0}-{r1}** ({r1 - r0 + 1} identical rows, each woven as below)"
+        out.append(f"{label} - picks {g['picks'][0]}-{g['picks'][1]}")
+        out.append("")
         for line in _describe_group(draft, g):
-            out.append(f"  - {line}")
+            out.append(f"- {line}")
+        out.append("")
     out.append("")
     return "\n".join(out)
 

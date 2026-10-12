@@ -34,6 +34,16 @@ from manitex.digitise.geometry import sample_bilinear
 TEXTURE_BLUR = 0.6
 
 
+def is_clean_image(image: np.ndarray, max_colors: int = 64) -> bool:
+    """True for noise-free pixel-art designs (few exact colours), False for photos and
+    cloth renders (thousands of colours from shading, texture and noise)."""
+    img = np.asarray(image)[..., :3]
+    flat = img.reshape(-1, 3)
+    if flat.shape[0] > 200_000:
+        flat = flat[:: flat.shape[0] // 200_000 + 1]
+    return int(np.unique(flat, axis=0).shape[0]) <= max_colors
+
+
 @dataclass
 class GridFit:
     xs: np.ndarray  # (nx + 1,) cell boundaries along x (pixels)
@@ -340,10 +350,8 @@ def fit_grid(
     lab = srgb_to_lab(np.asarray(image)[..., :3].astype(np.float64))
     H, W = lab.shape[:2]
     max_cell = max_cell or max(min(H, W) / 3.0, min_cell + 1)
-    # clean inputs (rendered / pixel-art designs) must keep every edge on the lattice
-    L0 = lab[..., 0]
-    pixel_noise = float(np.median(np.abs(L0 - ndimage.median_filter(L0, size=3))))
-    rel = 0.98 if pixel_noise < 0.3 else 0.9
+    # clean pixel-art inputs must keep every edge on the lattice
+    rel = 0.98 if is_clean_image(image) else 0.9
 
     texture = {0: None, 1: None}
     n_edges = {0: 0, 1: 0}

@@ -25,7 +25,7 @@ from manitex.color import (
 )
 from manitex.design import Design
 from manitex.digitise.geometry import deskew, warp_perspective
-from manitex.digitise.grid import GridFit, fit_grid, sample_cells
+from manitex.digitise.grid import GridFit, fit_grid, is_clean_image, sample_cells
 from manitex.digitise.quantize import choose_k, class_costs, kmeans, merge_clusters, potts_icm
 from manitex.digitise.structure import reduce_lossless, regularize_stripes, regularize_structure
 
@@ -136,7 +136,7 @@ def digitise(image: np.ndarray | Image.Image, options: DigitiseOptions | None = 
     cell_lab = sample_cells(img, grid)
     rng = np.random.default_rng(opt.seed)
     noise = pixel_noise(img)
-    clean = noise < 0.3  # a clean (rendered / pixel-art) input: never "regularise" it
+    clean = is_clean_image(img)  # a clean pixel-art input: never "regularise" it
     min_de = opt.min_delta_e if opt.min_delta_e is not None else (3.5 if clean else 9.0)
     report["pixel_noise"] = round(noise, 3)
     report["min_delta_e"] = round(float(min_de), 2)

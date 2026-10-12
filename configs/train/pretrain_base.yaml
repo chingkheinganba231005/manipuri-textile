@@ -1,0 +1,24 @@
+# Main pretraining run on the procedural grammar (~100M parameters, DiT-B scale).
+# A100 80GB, bf16 + torch.compile: roughly 12-20 hours for 150k steps.
+out_dir: runs/pretrain_base
+model: base             # d_model 768, depth 12, heads 12, patch 2
+crop: 64
+batch_size: 256
+steps: 150000
+lr: 3.0e-4
+warmup: 5000
+weight_decay: 0.05
+ema_decay: 0.9999
+precision: bf16
+compile: true
+num_workers: 16
+schedule: cosine
+weighting: mean
+eval_every: 5000
+eval_size: 1024
+sample_every: 10000
+save_every: 5000
+data:
+  - type: procedural
+    weight: 1.0
+    styles: {moirang_phee: 0.3, phanek_mayek_naibi: 0.25, banded_motif: 0.2, check: 0.1, motif_tile: 0.15}
